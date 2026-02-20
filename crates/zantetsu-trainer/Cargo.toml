@@ -10,6 +10,11 @@ license.workspace = true
 zantetsu-core = { workspace = true }
 zantetsu-vecdb = { workspace = true }
 
+# ML
+candle-core = { workspace = true }
+candle-nn = { workspace = true }
+oorandom = "11"
+
 # Async
 tokio = { workspace = true }
 
@@ -33,3 +38,7 @@ tracing = { workspace = true }
 clap = { workspace = true }
 
 [dev-dependencies]
+
+[[bin]]
+name = "train"
+path = "src/bin/train.rs"
