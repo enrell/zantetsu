@@ -24,6 +24,19 @@ Zantetsu transforms chaotic, unstructured media data (torrent names, file names,
 - **FFI Bindings**: Native bindings for TypeScript, Python, and C/C++
 - **Self-Improving**: RLAIF training loop for autonomous model improvement
 
+## Benchmarks
+
+Zantetsu is benchmarked against popular Python libraries `PTT` and `RTN` using a dataset of 100+ complex anime filenames.
+
+| Parser | Accuracy (Avg) | Perfect Matches |
+|--------|----------------|-----------------|
+| **Zantetsu (Heuristic)** | **78.4%** | 0% |
+| **Zantetsu (Neural)** | 50.4% | 0% |
+| Python Torrent Tools (PTT) | 77.9% | 1% |
+| Release Title Normalizer (RTN) | 76.7% | 0% |
+
+*Note: Neural model is in early stages and improving via RLAIF.*
+
 ## Architecture
 
 ```
@@ -82,11 +95,16 @@ Zantetsu transforms chaotic, unstructured media data (torrent names, file names,
 ### Prerequisites
 
 - Rust 1.85+ with Cargo
+- Python 3.10+ (for training/tools)
+- [uv](https://github.com/astral-sh/uv) (recommended for Python dependency management)
 - PostgreSQL 12+ (or Docker) for anime metadata
 
 ### Quick Start
 
 ```bash
+# Install Python dependencies
+uv sync
+
 # Build the project
 cargo build --release
 

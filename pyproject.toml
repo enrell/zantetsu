@@ -1,0 +1,17 @@
+[project]
+name = "zantetsu"
+version = "0.1.0"
+description = "Ultra-fast, intelligent library for anime metadata extraction and normalization"
+dependencies = [
+    "torch",
+    "datasets",
+    "transformers",
+    "safetensors",
+    "tokenizers",
+    "accelerate",
+    "openai",
+]
+requires-python = ">=3.10"
+
+[tool.uv]
+managed = true
