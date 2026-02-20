@@ -29,6 +29,14 @@ pub enum ZantetsuError {
     /// An invalid quality profile was provided.
     #[error("invalid scoring context: {0}")]
     InvalidContext(String),
+
+    /// Neural parser error.
+    #[error("neural parser error: {0}")]
+    NeuralParser(String),
+
+    /// Candle ML framework error.
+    #[error("ML inference error: {0}")]
+    CandleError(String),
 }
 
 /// Result type alias for Zantetsu operations.

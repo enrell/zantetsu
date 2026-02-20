@@ -133,7 +133,10 @@ mod tests {
         // Expected:
         // 0.35 * 0.85 (1080p) + 0.25 * 0.85 (HEVC) + 0.15 * 0.95 (FLAC) + 0.15 * 0.90 (BluRay) + 0.10 * 0.8
         let expected = 0.35 * 0.85 + 0.25 * 0.85 + 0.15 * 0.95 + 0.15 * 0.90 + 0.10 * 0.8;
-        assert!((score - expected).abs() < 0.001, "score={score}, expected={expected}");
+        assert!(
+            (score - expected).abs() < 0.001,
+            "score={score}, expected={expected}"
+        );
     }
 
     #[test]
@@ -157,8 +160,10 @@ mod tests {
         let profile = QualityProfile::default();
         let score = scores.compute(&profile);
 
-        let expected =
-            0.35 * 1.0 + 0.25 * 0.5 + 0.15 * 0.5 + 0.15 * 1.0 + 0.10 * 0.9;
-        assert!((score - expected).abs() < 0.001, "score={score}, expected={expected}");
+        let expected = 0.35 * 1.0 + 0.25 * 0.5 + 0.15 * 0.5 + 0.15 * 1.0 + 0.10 * 0.9;
+        assert!(
+            (score - expected).abs() < 0.001,
+            "score={score}, expected={expected}"
+        );
     }
 }

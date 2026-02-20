@@ -17,6 +17,8 @@ output/
 *.pt
 /benchmark_results.json
 /test_input.json
+/PLAN.md
+/AGENTS.md
 
 # Data
 data/dumps/

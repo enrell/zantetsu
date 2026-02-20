@@ -58,14 +58,15 @@ Zantetsu transforms chaotic, unstructured media data (torrent names, file names,
 └──────────────────────────────────────────────────────────┘
 ```
 
-## Crates
+## Crates & Tools
 
-| Crate | Description |
-|-------|-------------|
-| `zantetsu-core` | ML parser + heuristic fallback + scoring |
-| `zantetsu-vecdb` | Semantic vector search with HNSW |
-| `zantetsu-trainer` | Model training and RLAIF workflows |
-| `zantetsu-ffi` | Multi-language bindings |
+| Component | Type | Description |
+|-----------|------|-------------|
+| `zantetsu-core` | Crate | ML parser + heuristic fallback + scoring |
+| `zantetsu-vecdb` | Crate | Semantic vector search with HNSW |
+| `zantetsu-trainer` | Crate | Model training and RLAIF workflows |
+| `zantetsu-ffi` | Crate | Multi-language bindings |
+| `kitsu-sync` | Tool | Kitsu database dump downloader/importer |
 
 ## Tech Stack
 
@@ -78,13 +79,42 @@ Zantetsu transforms chaotic, unstructured media data (torrent names, file names,
 
 ## Getting Started
 
+### Prerequisites
+
+- Rust 1.85+ with Cargo
+- PostgreSQL 12+ (or Docker) for anime metadata
+
+### Quick Start
+
 ```bash
 # Build the project
 cargo build --release
 
-# Run the CLI
-cargo run --release -- --help
+# Download and import Kitsu anime database
+# Using Docker PostgreSQL (password: root)
+cargo run -p kitsu-sync -- -P root reset
+
+# Or with custom database
+cargo run -p kitsu-sync -- -H localhost -U postgres -P mypassword reset
+
+# Run tests
+cargo test --workspace
 ```
+
+### Database Setup
+
+Zantetsu uses the Kitsu anime database for semantic search and ground truth:
+
+```bash
+# Using Docker
+export KITSU_DB_PASSWORD=root
+cargo run -p kitsu-sync -- reset
+
+# Or using the shell script
+KITSU_DB_PASSWORD=root ./tools/kitsu-db-sync.sh reset
+```
+
+See [tools/kitsu-sync/README.md](tools/kitsu-sync/README.md) for detailed setup instructions.
 
 ## Design Principles
 

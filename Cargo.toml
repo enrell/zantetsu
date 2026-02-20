@@ -5,6 +5,8 @@ members = [
     "crates/zantetsu-vecdb",
     "crates/zantetsu-trainer",
     "crates/zantetsu-ffi",
+    "tools/kitsu-sync",
+    "tools/benchmark-compare",
 ]
 
 [workspace.package]
@@ -19,6 +21,8 @@ rust-version = "1.85"
 candle-core = "0.8"
 candle-nn = "0.8"
 safetensors = "0.4"
+candle-transformers = "0.8"
+tokenizers = "0.19"
 
 # Storage
 rusqlite = { version = "0.32", features = ["bundled"] }
@@ -42,7 +46,10 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 # HTTP
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
 
 # CLI
 clap = { version = "4", features = ["derive"] }

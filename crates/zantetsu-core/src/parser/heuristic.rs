@@ -111,21 +111,19 @@ impl HeuristicParser {
     }
 
     fn extract_crc32(&self, input: &str) -> Option<String> {
-        self.re_crc32
-            .captures(input)
-            .map(|c| c[1].to_uppercase())
+        self.re_crc32.captures(input).map(|c| c[1].to_uppercase())
     }
 
     fn extract_resolution(&self, input: &str) -> Option<Resolution> {
-        self.re_resolution.captures(input).and_then(|c| {
-            match &c[1] {
+        self.re_resolution
+            .captures(input)
+            .and_then(|c| match &c[1] {
                 "2160" => Some(Resolution::UHD2160),
                 "1080" => Some(Resolution::FHD1080),
                 "720" => Some(Resolution::HD720),
                 "480" => Some(Resolution::SD480),
                 _ => None,
-            }
-        })
+            })
     }
 
     fn extract_video_codec(&self, input: &str) -> Option<VideoCodec> {
@@ -491,9 +489,7 @@ mod tests {
     #[test]
     fn year_extraction() {
         let p = parser();
-        let r = p
-            .parse("[Group] Title (2024) - 01 (1080p).mkv")
-            .unwrap();
+        let r = p.parse("[Group] Title (2024) - 01 (1080p).mkv").unwrap();
         assert_eq!(r.year, Some(2024));
     }
 
@@ -503,13 +499,21 @@ mod tests {
 
         // Minimal parse — only title
         let r = p.parse("Some Random Title.mkv").unwrap();
-        assert!(r.confidence < 0.5, "confidence should be low: {}", r.confidence);
+        assert!(
+            r.confidence < 0.5,
+            "confidence should be low: {}",
+            r.confidence
+        );
 
         // Rich parse — many fields
         let r = p
             .parse("[SubsPlease] Jujutsu Kaisen - 24 (1080p) [H264] [AAC] [A1B2C3D4].mkv")
             .unwrap();
-        assert!(r.confidence > 0.7, "confidence should be high: {}", r.confidence);
+        assert!(
+            r.confidence > 0.7,
+            "confidence should be high: {}",
+            r.confidence
+        );
     }
 
     #[test]
