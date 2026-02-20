@@ -1,0 +1,34 @@
+[package]
+name = "zantetsu-core"
+description = "ML-based anime metadata extraction and normalization engine"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# ML inference (Phase 2)
+# candle-core = { workspace = true }
+# candle-nn = { workspace = true }
+# safetensors = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Regex (heuristic parser)
+regex = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+serde_json = { workspace = true }
+
+[[bench]]
+name = "parser_bench"
+harness = false

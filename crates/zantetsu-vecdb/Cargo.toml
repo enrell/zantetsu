@@ -1,0 +1,29 @@
+[package]
+name = "zantetsu-vecdb"
+description = "Semantic title mapping via embedded vector search"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+zantetsu-core = { workspace = true }
+
+# ML inference (Phase 3)
+# candle-core = { workspace = true }
+# candle-nn = { workspace = true }
+
+# Storage
+rusqlite = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+[dev-dependencies]

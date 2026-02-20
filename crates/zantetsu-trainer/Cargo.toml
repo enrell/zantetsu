@@ -1,0 +1,35 @@
+[package]
+name = "zantetsu-trainer"
+description = "Background sync and RLAIF training loop for Zantetsu"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+zantetsu-core = { workspace = true }
+zantetsu-vecdb = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# HTTP
+reqwest = { workspace = true }
+
+# Storage
+rusqlite = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+[dev-dependencies]

@@ -1,0 +1,31 @@
+[package]
+name = "zantetsu-ffi"
+description = "Multi-language FFI bindings for Zantetsu (Node, Python, C)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zantetsu-core = { workspace = true }
+zantetsu-vecdb = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# FFI bindings (Phase 4 — uncomment as needed)
+# napi = { version = "2", features = ["napi9"] }
+# napi-derive = "2"
+# pyo3 = { version = "0.22", features = ["extension-module"] }
+
+[dev-dependencies]

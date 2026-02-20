@@ -1,0 +1,21 @@
+/target
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Model weights (use git-lfs for these)
+*.safetensors
+*.onnx
+*.bin
+
+# Data dumps (large files)
+data/dumps/
+
+# IDE
+.idea/
+*.iml
+
+# Coverage
+lcov.info
+coverage/
