@@ -4,13 +4,28 @@
 *~
 .DS_Store
 
-# Model weights (use git-lfs for these)
+# Environment
+.env
+
+# Model weights and related files
+models/
+output/
 *.safetensors
 *.onnx
 *.bin
+*.pth
+*.pt
+/benchmark_results.json
+/test_input.json
 
-# Data dumps (large files)
+# Data
 data/dumps/
+data/training/
+test_input.json
+
+# Python
+__pycache__/
+*.pyc
 
 # IDE
 .idea/
