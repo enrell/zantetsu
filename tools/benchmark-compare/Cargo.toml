@@ -1,0 +1,17 @@
+[package]
+name = "benchmark-compare"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+zantetsu-core.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+clap = { workspace = true, features = ["derive"] }
+
+[[bin]]
+name = "zantetsu-parse"
+path = "src/main.rs"

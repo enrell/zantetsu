@@ -1,0 +1,29 @@
+[package]
+name = "kitsu-sync"
+version = "0.1.0"
+edition = "2021"
+authors = ["kokoro"]
+description = "Kitsu database dump sync tool for Zantetsu"
+
+[[bin]]
+name = "kitsu-sync"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Directories
+dirs = "5"
+
+[dev-dependencies]
