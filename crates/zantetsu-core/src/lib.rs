@@ -14,7 +14,7 @@
 //! assert_eq!(result.title.as_deref(), Some("Jujutsu Kaisen"));
 //! assert_eq!(result.group.as_deref(), Some("SubsPlease"));
 //! ```
-
+pub mod crf;
 pub mod error;
 pub mod parser;
 pub mod scoring;
@@ -22,7 +22,9 @@ pub mod types;
 
 // Re-export primary API
 pub use error::{Result, ZantetsuError};
-pub use parser::HeuristicParser;
+pub use parser::{
+    BioTag, HeuristicParser, NeuralParser, Parser, ParserConfig, Tokenizer, ViterbiDecoder,
+};
 pub use scoring::{ClientContext, DeviceType, NetworkQuality, QualityProfile, QualityScores};
 pub use types::{
     AudioCodec, EpisodeSpec, MediaSource, ParseMode, ParseResult, Resolution, VideoCodec,
