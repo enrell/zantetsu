@@ -29,6 +29,10 @@ test_input.json
 __pycache__/
 *.pyc
 
+# Node.js
+node_modules/
+dist/
+
 # IDE
 .idea/
 *.iml

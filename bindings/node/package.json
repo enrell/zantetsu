@@ -1,0 +1,42 @@
+{
+  "name": "zantetsu",
+  "version": "0.1.1",
+  "description": "Fast anime metadata parser - extracts title, episode, resolution, codecs from filenames",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "anime",
+    "parser",
+    "metadata",
+    "torrent",
+    "filename",
+    "heuristic"
+  ],
+  "author": "kokoro",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enrell/zantetsu.git"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  }
+}
