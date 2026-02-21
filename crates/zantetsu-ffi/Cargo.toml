@@ -26,6 +26,13 @@ tracing = { workspace = true }
 # FFI bindings (Phase 4 — uncomment as needed)
 # napi = { version = "2", features = ["napi9"] }
 # napi-derive = "2"
-# pyo3 = { version = "0.22", features = ["extension-module"] }
+napi = { version = "2", features = ["napi9"], optional = true }
+napi-derive = { version = "2", optional = true }
+pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
+
+[features]
+default = []
+node = ["napi", "napi-derive"]
+python = ["pyo3"]
 
 [dev-dependencies]
