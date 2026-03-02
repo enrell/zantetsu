@@ -47,8 +47,9 @@ function initNative(): void {
  * Matches the HeuristicParser from the Rust crate
  */
 class JsHeuristicParser {
-  // Simplified regex patterns
+  // Resolution pattern
   private readonly reResolution = /1080p|720p|480p|2160p/i;
+  // Group tag at the start
   private readonly reGroup = /^\[([^\]]+)\]/;
   // Match episode after dash, space, or dot - but not after year
   private readonly reEpisode = /(?:[\s\-.])(?:[Ee]p?\.?)?\s*(\d{1,4})(?:\b|v\d|[^\d])/;
@@ -58,6 +59,15 @@ class JsHeuristicParser {
   private readonly reYear = /\((\d{4})\)/;
   private readonly reExtension = /\.(\w+)$/;
   private readonly reCrc32 = /\[([A-Fa-f0-9]{8})\]/;
+  
+  // Video codec patterns (matching Rust implementation)
+  private readonly reVideoCodec = /\b(x\.?264|x\.?265|h\.?264|h\.?265|hevc|av1|vp9|mpeg4|xvid)\b/i;
+  
+  // Audio codec patterns (matching Rust implementation)
+  private readonly reAudioCodec = /\b(flac|aac|opus|ac3|dts|truehd|mp3|vorbis|ogg|e-?aac\+?)\b/i;
+  
+  // Media source patterns (matching Rust implementation)
+  private readonly reSource = /\b(blu-?ray|web-?dl|webrip|web-?rip|hdtv|dvd|laserdisc|vhs)\b/i;
 
   parse(input: string): ParseResult {
     const trimmed = input.trim();
@@ -91,6 +101,9 @@ class JsHeuristicParser {
     result.season = this.extractSeason(trimmed);
     result.year = this.extractYear(trimmed);
     result.episode = this.extractEpisode(trimmed);
+    result.video_codec = this.extractVideoCodec(trimmed);
+    result.audio_codec = this.extractAudioCodec(trimmed);
+    result.source = this.extractSource(trimmed);
 
     // Extract title
     result.title = this.extractTitle(trimmed, result);
@@ -160,6 +173,52 @@ class JsHeuristicParser {
     return null;
   }
 
+  private extractVideoCodec(input: string): VideoCodec | null {
+    const match = this.reVideoCodec.exec(input);
+    if (!match) return null;
+    
+    const codec = match[1].toLowerCase();
+    if (codec === 'x264' || codec === 'x.264' || codec === 'h264' || codec === 'h.264') return 'H264';
+    if (codec === 'x265' || codec === 'x.265' || codec === 'h265' || codec === 'h.265' || codec === 'hevc') return 'HEVC';
+    if (codec === 'av1') return 'AV1';
+    if (codec === 'vp9') return 'VP9';
+    if (codec === 'mpeg4' || codec === 'xvid') return 'MPEG4';
+    return null;
+  }
+
+  private extractAudioCodec(input: string): AudioCodec | null {
+    const match = this.reAudioCodec.exec(input);
+    if (!match) return null;
+    
+    const codec = match[1].toLowerCase();
+    if (codec === 'flac') return 'FLAC';
+    if (codec === 'aac') return 'AAC';
+    if (codec === 'opus') return 'Opus';
+    if (codec === 'ac3') return 'AC3';
+    if (codec.startsWith('dts')) return 'DTS';
+    if (codec.includes('truehd')) return 'TrueHD';
+    if (codec === 'mp3') return 'MP3';
+    if (codec === 'vorbis' || codec === 'ogg') return 'Vorbis';
+    if (codec.startsWith('e-aac') || codec.startsWith('eaac')) return 'EAAC';
+    return null;
+  }
+
+  private extractSource(input: string): MediaSource | null {
+    const match = this.reSource.exec(input);
+    if (!match) return null;
+    
+    const source = match[1].toLowerCase().replace(/[- ]/g, '');
+    if (source.includes('remux')) return 'BluRayRemux';
+    if (source.includes('blu') || source === 'bd') return 'BluRay';
+    if (source === 'webdl') return 'WebDL';
+    if (source === 'webrip') return 'WebRip';
+    if (source === 'hdtv') return 'HDTV';
+    if (source.startsWith('dvd')) return 'DVD';
+    if (source === 'laserdisc' || source === 'ld') return 'LaserDisc';
+    if (source === 'vhs') return 'VHS';
+    return null;
+  }
+
   private extractTitle(input: string, result: ParseResult): string | null {
     let work = input;
 
@@ -179,19 +238,33 @@ class JsHeuristicParser {
       }
     }
 
-    // Remove episode info
-    work = work.replace(this.reEpisodeV, ' ');
-    work = work.replace(this.reEpisodeRange, ' ');
-    work = work.replace(this.reEpisode, ' ');
-    work = work.replace(this.reSeason, ' ');
-    work = work.replace(this.reYear, ' ');
+    // Replace metadata tokens with null byte sentinel (like Rust implementation)
+    // Take text BEFORE the first sentinel as the title
+    const sentinel = '\x00';
+    
+    // Replace episode info with sentinel
+    work = work.replace(this.reEpisodeV, sentinel);
+    work = work.replace(this.reEpisodeRange, sentinel);
+    work = work.replace(this.reEpisode, sentinel);
+    
+    // Replace other metadata with sentinel
+    work = work.replace(this.reSeason, sentinel);
+    work = work.replace(this.reYear, sentinel);
+    work = work.replace(this.reResolution, sentinel);
+    work = work.replace(this.reVideoCodec, sentinel);
+    work = work.replace(this.reAudioCodec, sentinel);
+    work = work.replace(this.reSource, sentinel);
+    work = work.replace(this.reCrc32, sentinel);
 
-    // Remove bracketed content
-    work = work.replace(/\[[^\]]*\]/g, ' ');
-    work = work.replace(/\([^\)]*\)/g, ' ');
+    // Take text before the first sentinel
+    const titleRegion = work.split(sentinel)[0];
 
-    // Clean up
-    const cleaned = work
+    // Remove bracketed content from title region
+    let cleaned = titleRegion.replace(/\[[^\]]*\]/g, ' ');
+    cleaned = cleaned.replace(/\([^\)]*\)/g, ' ');
+
+    // Clean up: replace dots, underscores with spaces; normalize whitespace
+    cleaned = cleaned
       .replace(/[._]/g, ' ')
       .replace(/-/g, ' ')
       .split(/\s+/)
