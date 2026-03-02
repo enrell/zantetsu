@@ -1,11 +1,11 @@
 //! Training loop for the CRF model.
 
 use crate::data::{load_bio_dataset, CharVocab};
-use crate::model::{viterbi_decode, CrfModel, NUM_LABELS};
+use crate::model::CrfModel;
 
 pub struct Trainer {
     model: CrfModel,
-    vocab: CharVocab,
+    _vocab: CharVocab,
 }
 
 impl Trainer {

@@ -29,7 +29,7 @@ impl CrfModel {
         let mut features = Vec::new();
 
         let lower = token.to_lowercase();
-        let len = token.len();
+        let _len = token.len();
 
         // Basic features
         features.push(
@@ -184,7 +184,7 @@ impl CrfModel {
         // Simple perceptron-style update
         let preds = self.predict(tokens);
 
-        for (i, (&pred, &true_label)) in preds.iter().zip(true_labels.iter()).enumerate() {
+        for (_i, (&pred, &true_label)) in preds.iter().zip(true_labels.iter()).enumerate() {
             if pred != true_label {
                 // Update emission weights
                 for label in 0..NUM_LABELS {

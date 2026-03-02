@@ -7,9 +7,10 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::Command;
-use tracing::{info, warn, error};
+use tracing::info;
 
 /// Kitsu database dump URL
+#[allow(dead_code)]
 const DUMP_URL: &str = "https://f002.backblazeb2.com/file/kitsu-dumps/latest.sql.gz";
 
 /// Default dump directory
@@ -110,6 +111,7 @@ impl DatabaseConfig {
 /// Kitsu dump manager
 pub struct KitsuDumpManager {
     dump_dir: PathBuf,
+    #[allow(dead_code)]
     db_config: DatabaseConfig,
 }
 
