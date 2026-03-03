@@ -233,27 +233,70 @@ impl NeuralParser {
 
         for entity in entities {
             match entity.entity_type {
-                EntityType::Title => title = Some(entity.text.clone()),
-                EntityType::Group => group = Some(entity.text.clone()),
+                EntityType::Title => {
+                    if title.is_none() {
+                        title = Some(entity.text.clone());
+                    }
+                }
+                EntityType::Group => {
+                    if group.is_none() {
+                        group = Some(entity.text.clone());
+                    }
+                }
                 EntityType::Episode => {
-                    if let Ok(num) = entity.text.parse::<u32>() {
+                    if episode.is_none() && let Ok(num) = entity.text.parse::<u32>() {
                         episode = Some(EpisodeSpec::Single(num));
                     }
                 }
                 EntityType::Season => {
-                    if let Ok(num) = entity.text.parse::<u32>() {
+                    if season.is_none() && let Ok(num) = entity.text.parse::<u32>() {
                         season = Some(num);
                     }
                 }
-                EntityType::Resolution => resolution = self.parse_resolution(&entity.text),
-                EntityType::VCodec => video_codec = self.parse_video_codec(&entity.text),
-                EntityType::ACodec => audio_codec = self.parse_audio_codec(&entity.text),
-                EntityType::Source => source = self.parse_source(&entity.text),
-                EntityType::Year => year = entity.text.parse::<u16>().ok(),
-                EntityType::Crc32 => crc32 = Some(entity.text.clone()),
-                EntityType::Extension => extension = Some(entity.text.clone()),
+                EntityType::Resolution => {
+                    if resolution.is_none() {
+                        resolution = self.parse_resolution(&entity.text);
+                    }
+                }
+                EntityType::VCodec => {
+                    if video_codec.is_none() {
+                        video_codec = self.parse_video_codec(&entity.text);
+                    }
+                }
+                EntityType::ACodec => {
+                    if audio_codec.is_none() {
+                        audio_codec = self.parse_audio_codec(&entity.text);
+                    }
+                }
+                EntityType::Source => {
+                    if source.is_none() {
+                        source = self.parse_source(&entity.text);
+                    }
+                }
+                EntityType::Year => {
+                    if year.is_none() {
+                        year = entity.text.parse::<u16>().ok();
+                    }
+                }
+                EntityType::Crc32 => {
+                    if crc32.is_none() {
+                        crc32 = Some(entity.text.clone());
+                    }
+                }
+                EntityType::Extension => {
+                    if extension.is_none() {
+                        extension = Some(entity.text.clone());
+                    }
+                }
                 EntityType::Version => {
-                    version = entity.text.chars().find(|c| c.is_ascii_digit()).and_then(|c| c.to_digit(10)).map(|v| v as u8);
+                    if version.is_none() {
+                        version = entity
+                            .text
+                            .chars()
+                            .find(|c| c.is_ascii_digit())
+                            .and_then(|c| c.to_digit(10))
+                            .map(|v| v as u8);
+                    }
                 }
             }
         }

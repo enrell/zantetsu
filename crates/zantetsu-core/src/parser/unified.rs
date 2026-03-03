@@ -3,7 +3,7 @@
 //! Provides a unified API for parsing anime filenames with automatic
 //! mode selection and fallback handling.
 
-use crate::error::Result;
+use crate::error::{Result, ZantetsuError};
 use crate::parser::heuristic::HeuristicParser;
 use crate::parser::neural::NeuralParser;
 use crate::types::{ParseMode, ParseResult};
@@ -59,6 +59,50 @@ pub struct Parser {
     config: ParserConfig,
     heuristic: HeuristicParser,
     neural: Option<NeuralParser>,
+}
+
+fn is_usable_text(value: &Option<String>) -> bool {
+    value
+        .as_ref()
+        .map(|v| {
+            let trimmed = v.trim();
+            !trimmed.is_empty() && trimmed.len() >= 2
+        })
+        .unwrap_or(false)
+}
+
+fn is_heuristic_complete(result: &ParseResult) -> bool {
+    result.title.is_some() && result.group.is_some() && result.episode.is_some()
+}
+
+fn fuse_results(
+    mut heuristic: ParseResult,
+    neural: &ParseResult,
+    neural_fill_threshold: f32,
+) -> ParseResult {
+    if neural.confidence < neural_fill_threshold {
+        return heuristic;
+    }
+
+    if !is_usable_text(&heuristic.title) && is_usable_text(&neural.title) {
+        heuristic.title = neural.title.clone();
+    }
+    if !is_usable_text(&heuristic.group) && is_usable_text(&neural.group) {
+        heuristic.group = neural.group.clone();
+    }
+
+    if heuristic.episode.is_none() {
+        heuristic.episode = neural.episode.clone();
+    }
+    if heuristic.season.is_none() {
+        heuristic.season = neural.season;
+    }
+
+    heuristic.confidence = heuristic
+        .confidence
+        .max((heuristic.confidence + neural.confidence * 0.35).clamp(0.0, 1.0));
+
+    heuristic
 }
 
 impl Parser {
@@ -141,40 +185,37 @@ impl Parser {
     /// 2. If neural parser confidence is below threshold, try heuristic
     /// 3. Return the result with higher confidence
     fn parse_auto(&self, input: &str) -> Result<ParseResult> {
-        // Try neural parser first
-        if let Some(ref neural) = self.neural {
-            match neural.parse(input) {
-                Ok(neural_result) => {
-                    if neural_result.confidence >= self.config.confidence_threshold {
-                        return Ok(neural_result);
-                    }
+        let mut heuristic_result = self.heuristic.parse(input)?;
+        heuristic_result.parse_mode = ParseMode::Auto;
 
-                    // Neural result below threshold, try heuristic
-                    match self.heuristic.parse(input) {
-                        Ok(heuristic_result) => {
-                            if heuristic_result.confidence > neural_result.confidence {
-                                let mut result = heuristic_result;
-                                result.parse_mode = ParseMode::Light;
-                                return Ok(result);
-                            } else {
-                                return Ok(neural_result);
-                            }
-                        }
-                        Err(_) => {
-                            // Heuristic failed, return neural result anyway
-                            return Ok(neural_result);
-                        }
-                    }
-                }
-                Err(_) => {
-                    // Neural parser failed, fall back to heuristic
-                    return self.heuristic.parse(input);
-                }
-            }
+        let Some(neural) = self.neural.as_ref() else {
+            return Ok(heuristic_result);
+        };
+
+        if heuristic_result.confidence >= self.config.confidence_threshold
+            && is_heuristic_complete(&heuristic_result)
+        {
+            return Ok(heuristic_result);
         }
 
-        // No neural parser available, use heuristic
-        self.heuristic.parse(input)
+        match neural.parse(input) {
+            Ok(neural_result) => {
+                if neural_result.confidence > 0.90
+                    && neural_result.confidence > heuristic_result.confidence + 0.20
+                    && is_usable_text(&neural_result.title)
+                {
+                    return Ok(neural_result);
+                }
+
+                Ok(fuse_results(
+                    heuristic_result,
+                    &neural_result,
+                    self.config.confidence_threshold,
+                ))
+            }
+            Err(ZantetsuError::EmptyInput) => Err(ZantetsuError::EmptyInput),
+            Err(_) => Ok(heuristic_result),
+        }
     }
 
     /// Check if the neural parser is available.
@@ -249,6 +290,47 @@ mod tests {
         // Should extract basic metadata
         assert!(result.group.is_some());
         assert!(result.resolution.is_some());
+        assert_eq!(result.parse_mode, ParseMode::Auto);
+    }
+
+    #[test]
+    fn test_fusion_prefers_heuristic_and_fills_missing() {
+        let mut heuristic = ParseResult::new("x", ParseMode::Light);
+        heuristic.group = Some("SubsPlease".into());
+        heuristic.confidence = 0.62;
+
+        let mut neural = ParseResult::new("x", ParseMode::Full);
+        neural.title = Some("Jujutsu Kaisen".into());
+        neural.group = Some("SP".into());
+        neural.confidence = 0.82;
+
+        let merged = fuse_results(heuristic, &neural, 0.6);
+
+        assert_eq!(merged.group.as_deref(), Some("SubsPlease"));
+        assert_eq!(merged.title.as_deref(), Some("Jujutsu Kaisen"));
+        assert!(merged.confidence >= 0.62);
+    }
+
+    #[test]
+    fn test_fusion_ignores_low_confidence_neural_fill() {
+        let mut heuristic = ParseResult::new("x", ParseMode::Light);
+        heuristic.title = Some("Stable Title".into());
+        heuristic.confidence = 0.70;
+
+        let mut neural = ParseResult::new("x", ParseMode::Full);
+        neural.group = Some("NoisyGroup".into());
+        neural.confidence = 0.40;
+
+        let merged = fuse_results(heuristic.clone(), &neural, 0.6);
+        assert_eq!(merged.group, heuristic.group);
+        assert_eq!(merged.title, heuristic.title);
+    }
+
+    #[test]
+    fn test_is_usable_text_filters_noise() {
+        assert!(!is_usable_text(&Some("".into())));
+        assert!(!is_usable_text(&Some("v".into())));
+        assert!(is_usable_text(&Some("ab".into())));
     }
 
     #[test]

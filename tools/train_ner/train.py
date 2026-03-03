@@ -1,6 +1,7 @@
 import os
 import json
 import random
+from pathlib import Path
 from typing import List, Dict
 
 import torch
@@ -10,12 +11,15 @@ from transformers import (
     AutoModelForTokenClassification,
     TrainingArguments,
     Trainer,
-    DataCollatorForTokenClassification
+    DataCollatorForTokenClassification,
+    EarlyStoppingCallback,
 )
 
 MODEL_NAME = "distilbert-base-uncased"
 # Save directly to models/ner_model so Rust can load it immediately
 OUTPUT_DIR = "models/ner_model"
+RANDOM_SEED = 42
+MIN_TRAINING_EXAMPLES = 4000
 
 # Define TAG set matching Rust bio_tags.rs BioTag::index() ordering EXACTLY:
 #   0: B-TITLE, 1: I-TITLE, 2: B-GROUP, 3: I-GROUP,
@@ -38,46 +42,62 @@ def load_jsonl(path: str):
         for line in f:
             if not line.strip(): continue
             obj = json.loads(line)
+            # Drop empty tokens and preserve alignment
+            filtered = [
+                (tok, tag)
+                for tok, tag in zip(obj.get("tokens", []), obj.get("ner_tags", []))
+                if str(tok).strip()
+            ]
+            if not filtered:
+                continue
+            obj["tokens"] = [t for t, _ in filtered]
+            obj["ner_tags"] = [tag for _, tag in filtered]
             data.append(obj)
     return data
 
-def hard_negative_augmentation(example: Dict) -> Dict:
-    # Introduce "Session", "Part", "Version" noise into episode numbers
-    tokens = example["tokens"]
-    tags = example["ner_tags"]
-    
-    new_tokens = []
-    new_tags = []
-    
-    changed = False
-    for t, tag in zip(tokens, tags):
-        if tag == "B-EPISODE" and random.random() < 0.3:
-            confusing_prefix = random.choice(["Session", "Part", "Ver", "Volume", "Vol"])
-            new_tokens.append(confusing_prefix)
-            new_tags.append("O")
-            changed = True
-        
-        if tag == "O" and t.lower() in ["movie", "special"] and random.random() < 0.3:
-            new_tokens.append(t)
-            new_tags.append("O")
-            new_tokens.append(random.choice(["2.0", "3.0", "1.11"]))
-            new_tags.append("O")
-            changed = True
-            continue
+def augment_example(example: Dict) -> Dict:
+    tokens = list(example["tokens"])
+    tags = list(example["ner_tags"])
 
-        new_tokens.append(t)
-        new_tags.append(tag)
-        
-    return {"tokens": new_tokens, "ner_tags": new_tags} if changed else None
+    if len(tokens) != len(tags) or not tokens:
+        return example
+
+    # Resolution replacements keep the same tag semantics
+    for idx, (tok, tag) in enumerate(zip(tokens, tags)):
+        if tag == "RESOLUTION":
+            tokens[idx] = random.choice(["480p", "720p", "1080p", "2160p"])
+
+    # Add harmless noise tokens as Outside class
+    noise_candidates = ["batch", "v2", "multi", "dual", "uncensored", "remux"]
+    if random.random() < 0.7:
+        insert_at = random.randint(0, len(tokens))
+        tokens.insert(insert_at, random.choice(noise_candidates))
+        tags.insert(insert_at, "O")
+
+    if random.random() < 0.4:
+        insert_at = random.randint(0, len(tokens))
+        tokens.insert(insert_at, str(random.randint(2000, 2026)))
+        tags.insert(insert_at, "YEAR")
+
+    return {"tokens": tokens, "ner_tags": tags}
+
+
+def expand_corpus(data: List[Dict], target_size: int) -> List[Dict]:
+    if not data:
+        return data
+
+    expanded = list(data)
+    while len(expanded) < target_size:
+        base = random.choice(data)
+        expanded.append(augment_example(base))
+
+    random.shuffle(expanded)
+    return expanded
 
 def prepare_dataset(data: List[Dict]):
-    augmented = []
-    for ex in data:
-        aug = hard_negative_augmentation(ex)
-        if aug:
-            augmented.append(aug)
-            
-    all_data = data + augmented
+    random.seed(RANDOM_SEED)
+
+    all_data = expand_corpus(data, max(MIN_TRAINING_EXAMPLES, len(data) * 6))
     random.shuffle(all_data)
     
     for ex in all_data:
@@ -85,16 +105,43 @@ def prepare_dataset(data: List[Dict]):
         
     return Dataset.from_list(all_data)
 
+
+def resolve_data_path() -> Path | None:
+    script_path = Path(__file__).resolve()
+    repo_root = script_path.parents[2]
+
+    candidates = [
+        Path("data/training/silver_dataset.jsonl"),
+        repo_root / "data" / "training" / "silver_dataset.jsonl",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    checked = "\n  - ".join(str(p) for p in candidates)
+    print("Data file not found: data/training/silver_dataset.jsonl")
+    print("Checked these locations:\n  - " + checked)
+    print("\nGenerate the dataset, then rerun training:")
+    print("  1) Ensure input exists at data/training/nyaa_titles_5000_raw.txt")
+    print("  2) Run: cargo run -p zantetsu-trainer --bin bootstrap_dataset")
+    print("  3) Run: uv run .\\tools\\train_ner\\train.py")
+    return None
+
 def main():
-    data_path = "data/training/silver_dataset.jsonl"
-    if not os.path.exists(data_path):
-        print(f"Data file not found: {data_path}")
+    random.seed(RANDOM_SEED)
+    torch.manual_seed(RANDOM_SEED)
+
+    data_path = resolve_data_path()
+    if data_path is None:
         return
         
-    data = load_jsonl(data_path)
+    data = load_jsonl(str(data_path))
+    print(f"Loaded raw examples: {len(data)}")
     train_dataset = prepare_dataset(data)
+    print(f"Expanded training examples: {len(train_dataset)}")
     
-    split = train_dataset.train_test_split(test_size=0.1)
+    split = train_dataset.train_test_split(test_size=0.1, seed=RANDOM_SEED)
     train_dataset = split["train"]
     val_dataset = split["test"]
     
@@ -138,12 +185,17 @@ def main():
         output_dir=OUTPUT_DIR,
         eval_strategy="epoch",
         learning_rate=5e-5,
-        per_device_train_batch_size=8,
+        per_device_train_batch_size=16,
         per_device_eval_batch_size=8,
-        num_train_epochs=45,
+        num_train_epochs=12,
         weight_decay=0.01,
         save_strategy="epoch",
         logging_steps=5,
+        save_total_limit=3,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        seed=RANDOM_SEED,
     )
     
     collator = DataCollatorForTokenClassification(tokenizer)
@@ -155,6 +207,7 @@ def main():
         eval_dataset=val_dataset,
         data_collator=collator,
         processing_class=tokenizer,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
     )
     
     print("Starting training...")

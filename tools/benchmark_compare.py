@@ -28,11 +28,26 @@ except ImportError:
     sys.exit(1)
 
 
-ZANTETSU_BINARY = Path(__file__).parent.parent / "target" / "release" / "zantetsu-parse"
+ZANTETSU_BINARY_BASENAME = "zantetsu-parse"
 REGRESSION_DATA = (
     Path(__file__).parent.parent / "data" / "regression" / "tricky_filenames.jsonl"
 )
 OUTPUT_FILE = Path(__file__).parent.parent / "benchmark_results.json"
+
+
+def resolve_zantetsu_binary() -> Path | None:
+    """Resolve benchmark binary path across platforms."""
+    release_dir = Path(__file__).parent.parent / "target" / "release"
+    candidates = [release_dir / ZANTETSU_BINARY_BASENAME]
+
+    if sys.platform.startswith("win"):
+        candidates.insert(0, release_dir / f"{ZANTETSU_BINARY_BASENAME}.exe")
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return None
 
 
 def parse_with_ptt(filename: str) -> dict[str, Any]:
@@ -172,16 +187,21 @@ def convert_source(quality: str | None) -> str | None:
     return None
 
 
-def parse_with_zantetsu(filename: str, mode: str = "heuristic") -> dict[str, Any]:
+def parse_with_zantetsu(
+    filename: str, zantetsu_binary: Path, mode: str = "heuristic"
+) -> dict[str, Any]:
     """Parse using Zantetsu binary."""
     result = subprocess.run(
-        [str(ZANTETSU_BINARY), mode],
+        [str(zantetsu_binary), mode],
         input=filename,
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        return {"error": result.stderr}
+        stderr = result.stderr.strip()
+        stdout = result.stdout.strip()
+        details = stderr or stdout or "unknown zantetsu process error"
+        raise RuntimeError(f"zantetsu {mode} failed: {details}")
 
     data = json.loads(result.stdout.strip())
     return {
@@ -264,10 +284,19 @@ def calculate_total_score(
 
 
 def main():
-    if not ZANTETSU_BINARY.exists():
-        print(f"ERROR: Zantetsu binary not found at {ZANTETSU_BINARY}")
-        print("Build with: cargo build --release -p benchmark-compare")
-        sys.exit(1)
+    # Check for optional Zantetsu binary
+    zantetsu_binary = resolve_zantetsu_binary()
+    zantetsu_available = zantetsu_binary is not None
+    if not zantetsu_available:
+        expected_dir = Path(__file__).parent.parent / "target" / "release"
+        print(
+            "WARNING: Zantetsu binary not found in "
+            f"{expected_dir} (expected {ZANTETSU_BINARY_BASENAME}[.exe])"
+        )
+        print("         Zantetsu benchmarks will be skipped.")
+        print("         To enable: cargo build --release -p benchmark-compare")
+    else:
+        print(f"Found Zantetsu binary: {zantetsu_binary}")
 
     if not REGRESSION_DATA.exists():
         print(f"ERROR: Regression data not found at {REGRESSION_DATA}")
@@ -288,6 +317,7 @@ def main():
         "ptt": {"scores": [], "errors": 0, "field_wins": {}},
         "rtn": {"scores": [], "errors": 0, "field_wins": {}},
         "zantetsu_heuristic": {"scores": [], "errors": 0, "field_wins": {}},
+        "zantetsu_auto": {"scores": [], "errors": 0, "field_wins": {}},
         "zantetsu_neural": {"scores": [], "errors": 0, "field_wins": {}},
     }
 
@@ -351,39 +381,71 @@ def main():
             results["rtn"]["errors"] += 1
             case_result["parsers"]["rtn"] = {"error": str(e)}
 
-        # Zantetsu Heuristic
-        try:
-            actual_zh = parse_with_zantetsu(filename, "heuristic")
-            score_zh, field_results_zh = calculate_total_score(expected, actual_zh)
-            results["zantetsu_heuristic"]["scores"].append(score_zh)
+        # Zantetsu Heuristic (if available)
+        if zantetsu_available:
+            try:
+                actual_zh = parse_with_zantetsu(filename, zantetsu_binary, "heuristic")
+                score_zh, field_results_zh = calculate_total_score(expected, actual_zh)
+                results["zantetsu_heuristic"]["scores"].append(score_zh)
+                case_result["parsers"]["zantetsu_heuristic"] = {
+                    "result": actual_zh,
+                    "score": score_zh,
+                    "fields": field_results_zh,
+                }
+                for f in fields:
+                    if field_results_zh[f][0] == 1.0:
+                        results["zantetsu_heuristic"]["field_wins"][f] += 1
+            except Exception as e:
+                results["zantetsu_heuristic"]["errors"] += 1
+                case_result["parsers"]["zantetsu_heuristic"] = {"error": str(e)}
+        else:
             case_result["parsers"]["zantetsu_heuristic"] = {
-                "result": actual_zh,
-                "score": score_zh,
-                "fields": field_results_zh,
+                "skipped": "binary not available"
             }
-            for f in fields:
-                if field_results_zh[f][0] == 1.0:
-                    results["zantetsu_heuristic"]["field_wins"][f] += 1
-        except Exception as e:
-            results["zantetsu_heuristic"]["errors"] += 1
-            case_result["parsers"]["zantetsu_heuristic"] = {"error": str(e)}
 
-        # Zantetsu Neural
-        try:
-            actual_zn = parse_with_zantetsu(filename, "neural")
-            score_zn, field_results_zn = calculate_total_score(expected, actual_zn)
-            results["zantetsu_neural"]["scores"].append(score_zn)
+        # Zantetsu Neural (if available)
+        if zantetsu_available:
+            try:
+                actual_zn = parse_with_zantetsu(filename, zantetsu_binary, "neural")
+                score_zn, field_results_zn = calculate_total_score(expected, actual_zn)
+                results["zantetsu_neural"]["scores"].append(score_zn)
+                case_result["parsers"]["zantetsu_neural"] = {
+                    "result": actual_zn,
+                    "score": score_zn,
+                    "fields": field_results_zn,
+                }
+                for f in fields:
+                    if field_results_zn[f][0] == 1.0:
+                        results["zantetsu_neural"]["field_wins"][f] += 1
+            except Exception as e:
+                results["zantetsu_neural"]["errors"] += 1
+                case_result["parsers"]["zantetsu_neural"] = {"error": str(e)}
+        else:
             case_result["parsers"]["zantetsu_neural"] = {
-                "result": actual_zn,
-                "score": score_zn,
-                "fields": field_results_zn,
+                "skipped": "binary not available"
             }
-            for f in fields:
-                if field_results_zn[f][0] == 1.0:
-                    results["zantetsu_neural"]["field_wins"][f] += 1
-        except Exception as e:
-            results["zantetsu_neural"]["errors"] += 1
-            case_result["parsers"]["zantetsu_neural"] = {"error": str(e)}
+
+        # Zantetsu Auto (if available)
+        if zantetsu_available:
+            try:
+                actual_za = parse_with_zantetsu(filename, zantetsu_binary, "auto")
+                score_za, field_results_za = calculate_total_score(expected, actual_za)
+                results["zantetsu_auto"]["scores"].append(score_za)
+                case_result["parsers"]["zantetsu_auto"] = {
+                    "result": actual_za,
+                    "score": score_za,
+                    "fields": field_results_za,
+                }
+                for f in fields:
+                    if field_results_za[f][0] == 1.0:
+                        results["zantetsu_auto"]["field_wins"][f] += 1
+            except Exception as e:
+                results["zantetsu_auto"]["errors"] += 1
+                case_result["parsers"]["zantetsu_auto"] = {"error": str(e)}
+        else:
+            case_result["parsers"]["zantetsu_auto"] = {
+                "skipped": "binary not available"
+            }
 
         detailed_results.append(case_result)
 
