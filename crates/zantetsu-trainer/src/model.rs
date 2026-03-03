@@ -269,7 +269,7 @@ pub fn viterbi_decode(emissions: &[f32], transitions: &[f32], num_labels: usize)
     }
 
     let mut viterbi = vec![vec![f32::MIN / 1e10; num_labels]; seq_len];
-    let mut backpointers = vec![vec![0usize; num_labels]; seq_len.saturating_sub(1).max(1)];
+    let mut backpointers = vec![vec![0usize; num_labels]; seq_len];
 
     // Initialize
     for j in 0..num_labels {
@@ -334,5 +334,24 @@ mod tests {
 
         let path = viterbi_decode(&emissions, &transitions, 3);
         assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_viterbi_backpointer_for_two_tokens() {
+        let emissions = vec![
+            0.0, 2.0, 0.0, // token 0 prefers label 1
+            0.0, 0.0, 0.0, // token 1 neutral; transition should dominate
+        ];
+
+        // Row-major as [to * num_labels + from]
+        // Strongly prefer transition 1 -> 2.
+        let transitions = vec![
+            0.0, 0.0, 0.0, // to 0 from [0,1,2]
+            0.0, 0.0, 0.0, // to 1 from [0,1,2]
+            0.0, 3.0, 0.0, // to 2 from [0,1,2]
+        ];
+
+        let path = viterbi_decode(&emissions, &transitions, 3);
+        assert_eq!(path, vec![1, 2]);
     }
 }

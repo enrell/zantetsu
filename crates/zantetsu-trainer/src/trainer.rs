@@ -13,7 +13,10 @@ impl Trainer {
         let vocab = CharVocab::new();
         let model = CrfModel::new();
 
-        Self { model, vocab }
+        Self {
+            model,
+            _vocab: vocab,
+        }
     }
 
     pub fn train_on_file<P: AsRef<std::path::Path>>(
