@@ -12,13 +12,17 @@ use crate::types::{
 /// engine but latency is sub-microsecond.
 pub struct HeuristicParser {
     re_resolution: Regex,
+    re_resolution_dim: Regex,
     re_vcodec: Regex,
     re_acodec: Regex,
     re_source: Regex,
     re_crc32: Regex,
+    re_season_episode: Regex,
     re_episode_range: Regex,
     re_episode_version: Regex,
     re_episode: Regex,
+    re_explicit_episode: Regex,
+    re_dash_episode: Regex,
     re_season: Regex,
     re_version: Regex,
     re_year: Regex,
@@ -36,6 +40,7 @@ impl HeuristicParser {
     pub fn new() -> Result<Self> {
         Ok(Self {
             re_resolution: Regex::new(r"(?i)\b(2160|1080|720|480)[pi]\b")?,
+            re_resolution_dim: Regex::new(r"(?i)(\d{3,4})\s*x\s*(\d{3,4})")?,
             re_vcodec: Regex::new(
                 r"(?i)\b(x\.?264|x\.?265|h\.?264|h\.?265|hevc|av1|vp9|mpeg4|xvid)\b",
             )?,
@@ -43,9 +48,10 @@ impl HeuristicParser {
                 r"(?i)\b(flac|aac|opus|ac3|dts(?:-?hd)?|truehd|true\shd|mp3|vorbis|ogg|e-?aac\+?)\b",
             )?,
             re_source: Regex::new(
-                r"(?i)\b(blu-?ray\s*remux|bdremux|bd-?remux|blu-?ray|web-?dl|webrip|web-?rip|hdtv|dvd(?:rip)?|laserdisc|ld|vhs)\b",
+                r"(?i)(?:\b|_)(blu-?ray\s*remux|bdremux|bd-?remux|blu-?ray|bdrip|web-?dl|webrip|web-?rip|web|hdtv|dvd(?:rip)?|laserdisc|ld|vhs|bd)(?:\b|_)",
             )?,
             re_crc32: Regex::new(r"\[([0-9A-Fa-f]{8})\]")?,
+            re_season_episode: Regex::new(r"(?i)\bS(\d{1,2})E(\d{1,4})\b")?,
             re_episode_range: Regex::new(
                 r"(?i)(?:[\s\-_\.]|(?:^|[\s\-_\.\[\(])ep?\.?\s*)(\d{1,4})\s*[-~]\s*(\d{1,4})\b",
             )?,
@@ -53,7 +59,15 @@ impl HeuristicParser {
                 r"(?i)(?:[\s\-_\.]|(?:^|[\s\-_\.\[\(])ep?\.?\s*)(\d{1,4})v(\d)\b",
             )?,
             re_episode: Regex::new(
-                r"(?i)(?:[\s\-_\.]|(?:^|[\s\-_\.\[\(])(?:ep?\.?|episode)\s*)(\d{1,4})(?:\b|[^0-9v\-~])",
+                r"(?i)(?:[\s\-_\.]|(?:^|[\s\-_\.\[\(])(?:ep?\.?|episode|session)\s*)(\d{1,4})(?:\b|[^0-9v\-~])",
+            )?,
+            // Explicit episode markers: .E##., EP##, Episode ##, Session ##
+            re_explicit_episode: Regex::new(
+                r"(?i)(?:[\s\.\-_\[\(])(?:ep?\.?|episode|session)\s*(\d{1,4})\b",
+            )?,
+            // Standard anime separator: " - ## " with flexible spacing
+            re_dash_episode: Regex::new(
+                r"(?:\s+-\s+)(\d{1,4})(?:\b|[^0-9v\-~])",
             )?,
             re_season: Regex::new(r"(?i)(?:\bS|season\s*)(\d{1,2})\b")?,
             re_version: Regex::new(r"(?i)\[v(\d)\]|\bv(\d)\b")?,
@@ -84,9 +98,12 @@ impl HeuristicParser {
         result.video_codec = self.extract_video_codec(trimmed);
         result.audio_codec = self.extract_audio_codec(trimmed);
         result.source = self.extract_source(trimmed);
-        result.season = self.extract_season(trimmed);
         result.year = self.extract_year(trimmed);
-        result.episode = self.extract_episode(trimmed);
+
+        // Season and episode: try S##E## combined first
+        let (se_season, se_episode) = self.extract_season_episode(trimmed);
+        result.season = se_season.or_else(|| self.extract_season(trimmed));
+        result.episode = se_episode.or_else(|| self.extract_episode(trimmed, &result));
         result.version = self.extract_version(trimmed, &result.episode);
 
         // Title extraction: everything between group tag and first metadata token
@@ -115,7 +132,9 @@ impl HeuristicParser {
     }
 
     fn extract_resolution(&self, input: &str) -> Option<Resolution> {
-        self.re_resolution
+        // Try standard NNNNp/NNNNi format first
+        if let Some(res) = self
+            .re_resolution
             .captures(input)
             .and_then(|c| match &c[1] {
                 "2160" => Some(Resolution::UHD2160),
@@ -123,6 +142,23 @@ impl HeuristicParser {
                 "720" => Some(Resolution::HD720),
                 "480" => Some(Resolution::SD480),
                 _ => None,
+            })
+        {
+            return Some(res);
+        }
+
+        // Try WIDTHxHEIGHT format (e.g. 1920x1080, 1280x720)
+        self.re_resolution_dim
+            .captures(input)
+            .and_then(|c| {
+                let height: u32 = c[2].parse().ok()?;
+                match height {
+                    2160 => Some(Resolution::UHD2160),
+                    1080 => Some(Resolution::FHD1080),
+                    720 => Some(Resolution::HD720),
+                    480 => Some(Resolution::SD480),
+                    _ => None,
+                }
             })
     }
 
@@ -159,12 +195,17 @@ impl HeuristicParser {
     }
 
     fn extract_source(&self, input: &str) -> Option<MediaSource> {
-        self.re_source.captures(input).and_then(|c| {
+        // Normalize underscores to spaces for matching (e.g. _Blu-Ray_ patterns)
+        let normalized = input.replace('_', " ");
+        self.re_source.captures(&normalized).and_then(|c| {
             let source = c[1].to_lowercase().replace([' ', '-'], "");
             match source.as_str() {
                 s if s.contains("remux") => Some(MediaSource::BluRayRemux),
-                s if s.contains("blu") || s == "bd" => Some(MediaSource::BluRay),
+                s if s.contains("blu") => Some(MediaSource::BluRay),
+                "bdrip" => Some(MediaSource::BluRay),
+                "bd" => Some(MediaSource::BluRay),
                 "webdl" => Some(MediaSource::WebDL),
+                "web" => Some(MediaSource::WebDL),
                 "webrip" => Some(MediaSource::WebRip),
                 "hdtv" => Some(MediaSource::HDTV),
                 s if s.starts_with("dvd") => Some(MediaSource::DVD),
@@ -176,9 +217,32 @@ impl HeuristicParser {
     }
 
     fn extract_season(&self, input: &str) -> Option<u32> {
+        // Try S## pattern (but not S##E## which is handled by extract_season_episode)
         self.re_season
             .captures(input)
-            .and_then(|c| c[1].parse().ok())
+            .and_then(|c| {
+                // Verify it's not part of S##E## — if so, re_season_episode handles it
+                let full_match = c.get(0)?;
+                let after = &input[full_match.end()..];
+                // If immediately followed by E+digits, skip it (handled elsewhere)
+                if after.starts_with('E') || after.starts_with('e') {
+                    let rest = &after[1..];
+                    if rest.starts_with(|ch: char| ch.is_ascii_digit()) {
+                        return None;
+                    }
+                }
+                c[1].parse().ok()
+            })
+    }
+
+    /// Extract combined S##E## season+episode notation.
+    fn extract_season_episode(&self, input: &str) -> (Option<u32>, Option<EpisodeSpec>) {
+        if let Some(caps) = self.re_season_episode.captures(input) {
+            let season: u32 = caps[1].parse().ok().unwrap_or(0);
+            let episode: u32 = caps[2].parse().ok().unwrap_or(0);
+            return (Some(season), Some(EpisodeSpec::Single(episode)));
+        }
+        (None, None)
     }
 
     fn extract_year(&self, input: &str) -> Option<u16> {
@@ -194,30 +258,156 @@ impl HeuristicParser {
         })
     }
 
-    fn extract_episode(&self, input: &str) -> Option<EpisodeSpec> {
-        // Try episode range first: "01-12"
-        if let Some(caps) = self.re_episode_range.captures(input) {
-            let start: u32 = caps[1].parse().ok()?;
-            let end: u32 = caps[2].parse().ok()?;
-            if start < end {
-                return Some(EpisodeSpec::Range(start, end));
+    fn extract_episode(&self, input: &str, result: &ParseResult) -> Option<EpisodeSpec> {
+        // S##E## is handled by extract_season_episode, skip if present
+        if self.re_season_episode.is_match(input) {
+            return None;
+        }
+
+        // Phase 1: Versioned episodes "12v2" — try all, validate
+        for caps in self.re_episode_version.captures_iter(input) {
+            let episode: u32 = match caps[1].parse().ok() {
+                Some(v) => v,
+                None => continue,
+            };
+            let version: u8 = match caps[2].parse().ok() {
+                Some(v) => v,
+                None => continue,
+            };
+            if !self.is_year_or_resolution(episode, result) {
+                return Some(EpisodeSpec::Version { episode, version });
             }
         }
 
-        // Try versioned episode: "12v2"
-        if let Some(caps) = self.re_episode_version.captures(input) {
-            let episode: u32 = caps[1].parse().ok()?;
-            let version: u8 = caps[2].parse().ok()?;
-            return Some(EpisodeSpec::Version { episode, version });
+        // Phase 2: Episode ranges "01-12" — validate the range is not "Part X-Y"
+        for caps in self.re_episode_range.captures_iter(input) {
+            let start: u32 = match caps[1].parse().ok() {
+                Some(v) => v,
+                None => continue,
+            };
+            let end: u32 = match caps[2].parse().ok() {
+                Some(v) => v,
+                None => continue,
+            };
+            if start >= end || self.is_resolution_number(start) {
+                continue;
+            }
+            // Reject if preceded by "Part" or "Season" (e.g. "Part 2 - 25")
+            if let Some(m) = caps.get(0) {
+                let prefix = input[..m.start()].to_lowercase();
+                let prefix_trimmed = prefix.trim_end();
+                if prefix_trimmed.ends_with("part") || prefix_trimmed.ends_with("season") {
+                    continue;
+                }
+            }
+            return Some(EpisodeSpec::Range(start, end));
         }
 
-        // Try single episode
-        if let Some(caps) = self.re_episode.captures(input) {
+        // Phase 3: Explicit episode markers (E##, Ep##, Episode ##, Session ##)
+        // These are the strongest signal and override bare numbers
+        if let Some(caps) = self.re_explicit_episode.captures(input) {
             let ep: u32 = caps[1].parse().ok()?;
+            if !self.is_year_or_resolution(ep, result) {
+                return Some(EpisodeSpec::Single(ep));
+            }
+        }
+
+        // Phase 4: " - ## " separator pattern — find the LAST valid match
+        // This covers the standard anime naming convention: [Group] Title - ## (quality)
+        let mut last_dash_ep: Option<u32> = None;
+        for caps in self.re_dash_episode.captures_iter(input) {
+            let ep: u32 = match caps[1].parse().ok() {
+                Some(v) => v,
+                None => continue,
+            };
+            if self.is_year_or_resolution(ep, result) {
+                continue;
+            }
+            // Reject Vol numbers
+            if let Some(m) = caps.get(0) {
+                let prefix = input[..m.start()].to_lowercase();
+                let trimmed = prefix.trim_end();
+                if trimmed.ends_with("vol.") || trimmed.ends_with("vol") {
+                    continue;
+                }
+            }
+            last_dash_ep = Some(ep); // Keep updating — we want the LAST one
+        }
+        if let Some(ep) = last_dash_ep {
+            return Some(EpisodeSpec::Single(ep));
+        }
+
+        // Phase 5: Bare number fallback — only if no explicit or dash patterns matched
+        // Be conservative: skip numbers that look like version parts (X.Y)
+        for caps in self.re_episode.captures_iter(input) {
+            let full_match = match caps.get(0) {
+                Some(m) => m,
+                None => continue,
+            };
+            let digit_match = match caps.get(1) {
+                Some(m) => m,
+                None => continue,
+            };
+            let ep: u32 = match digit_match.as_str().parse().ok() {
+                Some(v) => v,
+                None => continue,
+            };
+
+            if self.is_year_or_resolution(ep, result) {
+                continue;
+            }
+
+            // Skip version-embedded numbers: digit.digit pattern (e.g. "2.0", "1.1")
+            if full_match.start() > 0 {
+                let prefix_byte = input.as_bytes()[full_match.start()];
+                if prefix_byte == b'.' && full_match.start() >= 2 {
+                    let before = input.as_bytes()[full_match.start() - 1];
+                    if before.is_ascii_digit() {
+                        continue;
+                    }
+                }
+            }
+
+            // Skip numbers followed by ".digit" (decimal: 2.0)
+            if digit_match.end() < input.len() {
+                let next_byte = input.as_bytes()[digit_match.end()];
+                if next_byte == b'.'
+                    && digit_match.end() + 1 < input.len()
+                    && input.as_bytes()[digit_match.end() + 1].is_ascii_digit()
+                {
+                    continue;
+                }
+            }
+
+            // Skip Vol numbers
+            if full_match.start() >= 3 {
+                let prefix = input[..full_match.start()].to_lowercase();
+                if prefix.ends_with("vol")
+                    || prefix.trim_end().ends_with("vol.")
+                    || prefix.trim_end().ends_with("vol")
+                {
+                    continue;
+                }
+            }
+
             return Some(EpisodeSpec::Single(ep));
         }
 
         None
+    }
+
+    /// Check if a number is a common video resolution height.
+    fn is_resolution_number(&self, n: u32) -> bool {
+        matches!(n, 480 | 576 | 720 | 1080 | 2160 | 1280 | 1920 | 3840)
+    }
+
+    /// Check if a number is likely a year or resolution, not an episode.
+    fn is_year_or_resolution(&self, n: u32, result: &ParseResult) -> bool {
+        if let Some(year) = result.year
+            && n == u32::from(year) {
+                return true;
+            }
+        self.is_resolution_number(n)
     }
 
     fn extract_version(&self, input: &str, episode: &Option<EpisodeSpec>) -> Option<u8> {
@@ -240,27 +430,26 @@ impl HeuristicParser {
         let mut work = input.to_string();
 
         // Remove the group tag from the start
-        if result.group.is_some() {
-            if let Some(end) = work.find(']') {
+        if result.group.is_some()
+            && let Some(end) = work.find(']') {
                 work = work[end + 1..].to_string();
             }
-        }
 
         // Remove file extension from the end
-        if let Some(ref ext) = result.extension {
-            if let Some(pos) = work.rfind(&format!(".{ext}")) {
+        if let Some(ref ext) = result.extension
+            && let Some(pos) = work.rfind(&format!(".{ext}")) {
                 work = work[..pos].to_string();
             }
-        }
 
-        // Remove known metadata tokens from the working string
-        // by replacing matched regions with a sentinel
+        // Remove known metadata tokens (NOT episode)
         let patterns_to_strip: Vec<&Regex> = vec![
             &self.re_resolution,
+            &self.re_resolution_dim,
             &self.re_vcodec,
             &self.re_acodec,
             &self.re_source,
             &self.re_crc32,
+            &self.re_season_episode,
             &self.re_episode_range,
             &self.re_episode_version,
             &self.re_season,
@@ -271,20 +460,20 @@ impl HeuristicParser {
             work = pattern.replace_all(&work, "\x00").to_string();
         }
 
-        // For episode, replace more carefully (avoid consuming part of the title)
-        work = self.re_episode.replace_all(&work, "\x00").to_string();
+        // For episode: instead of replace_all (which matches title numbers too),
+        // find the correct episode position using priority-based matching
+        self.sentinel_episode_in_title(&mut work, result);
 
         // Also strip year if it's in brackets or clearly separate
         if let Some(year) = result.year {
             let year_str = year.to_string();
-            // Only strip if it appears in brackets or is clearly not part of the title
             let bracketed_year = format!("({year_str})");
             work = work.replace(&bracketed_year, "\x00");
             let bracketed_year = format!("[{year_str}]");
             work = work.replace(&bracketed_year, "\x00");
         }
 
-        // Remove any remaining bracketed content (typically metadata tags like [Multiple Subtitle])
+        // Remove any remaining bracketed content (typically metadata tags)
         let re_brackets = Regex::new(r"\[[^\]]*\]|\([^\)]*\)").ok()?;
         work = re_brackets.replace_all(&work, " ").to_string();
 
@@ -300,10 +489,94 @@ impl HeuristicParser {
             .trim_matches(|c: char| c == '-' || c == ' ')
             .to_string();
 
+        // Strip common non-title tokens from the end
+        let cleaned = strip_trailing_noise(&cleaned);
+
         if cleaned.is_empty() {
             None
         } else {
             Some(cleaned)
+        }
+    }
+
+    /// Insert episode sentinel in the title work string at the correct position.
+    /// Uses the same priority logic as extract_episode to find the RIGHT number.
+    fn sentinel_episode_in_title(&self, work: &mut String, result: &ParseResult) {
+        // If S##E## was the episode source, it's already stripped above
+        if self.re_season_episode.is_match(work) {
+            return;
+        }
+
+        // Phase 1: explicit E##/Ep## markers — sentinel these
+        if self.re_explicit_episode.is_match(work) {
+            *work = self.re_explicit_episode.replace_all(work, "\x00").to_string();
+            return;
+        }
+
+        // Phase 2: " - ## " dash separator — find the LAST valid match
+        let mut last_dash_pos: Option<(usize, usize)> = None;
+        for caps in self.re_dash_episode.captures_iter(work) {
+            let m = match caps.get(0) {
+                Some(m) => m,
+                None => continue,
+            };
+            let digit = match caps.get(1) {
+                Some(d) => d,
+                None => continue,
+            };
+            let ep: u32 = match digit.as_str().parse().ok() {
+                Some(v) => v,
+                None => continue,
+            };
+            if self.is_year_or_resolution(ep, result) {
+                continue;
+            }
+            last_dash_pos = Some((m.start(), m.end()));
+        }
+        if let Some((start, _end)) = last_dash_pos {
+            work.insert(start, '\x00');
+            return;
+        }
+
+        // Phase 3: Bare episode matches — use first valid one
+        for caps in self.re_episode.captures_iter(work) {
+            let full = match caps.get(0) {
+                Some(m) => m,
+                None => continue,
+            };
+            let digit = match caps.get(1) {
+                Some(d) => d,
+                None => continue,
+            };
+            let ep: u32 = match digit.as_str().parse().ok() {
+                Some(v) => v,
+                None => continue,
+            };
+            if self.is_year_or_resolution(ep, result) {
+                continue;
+            }
+            // Skip version-embedded numbers (digit.digit)
+            if full.start() > 0 {
+                let prefix_byte = work.as_bytes()[full.start()];
+                if prefix_byte == b'.' && full.start() >= 2 {
+                    let before = work.as_bytes()[full.start() - 1];
+                    if before.is_ascii_digit() {
+                        continue;
+                    }
+                }
+            }
+            // Skip numbers followed by ".digit"
+            if digit.end() < work.len() {
+                let next = work.as_bytes()[digit.end()];
+                if next == b'.'
+                    && digit.end() + 1 < work.len()
+                    && work.as_bytes()[digit.end() + 1].is_ascii_digit()
+                {
+                    continue;
+                }
+            }
+            work.insert(full.start(), '\x00');
+            return;
         }
     }
 
@@ -338,6 +611,31 @@ impl HeuristicParser {
 
         (fields_present as f32 / fields_total as f32).min(1.0)
     }
+}
+
+/// Strip common non-title tokens from the end of a title string.
+fn strip_trailing_noise(title: &str) -> String {
+    let noise_tokens = [
+        "RAW", "VOSTFR", "MULTI", "Hi10P", "10bit", "Dual Audio",
+        "Multiple Subtitle", "Multi-Subs", "Main 10",
+    ];
+    let mut result = title.to_string();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let trimmed = result.trim_end_matches(['-', ' ']);
+        if trimmed.len() != result.len() {
+            result = trimmed.to_string();
+            changed = true;
+        }
+        for token in &noise_tokens {
+            if result.to_lowercase().ends_with(&token.to_lowercase()) {
+                result = result[..result.len() - token.len()].to_string();
+                changed = true;
+            }
+        }
+    }
+    result
 }
 
 #[cfg(test)]

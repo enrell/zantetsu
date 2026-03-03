@@ -9,7 +9,7 @@ pub struct ParseOutput {
     pub title: Option<String>,
     pub group: Option<String>,
     pub season: Option<u32>,
-    pub episode: Option<String>,
+    pub episode: Option<serde_json::Value>,
     pub resolution: Option<String>,
     pub video_codec: Option<String>,
     pub audio_codec: Option<String>,
@@ -23,20 +23,8 @@ pub struct ParseOutput {
     pub error: Option<String>,
 }
 
-fn episode_to_string(ep: &zantetsu_core::types::EpisodeSpec) -> String {
-    use zantetsu_core::types::EpisodeSpec::*;
-    match ep {
-        Single(n) => format!("Single({})", n),
-        Range(s, e) => format!("Range({},{})", s, e),
-        Multi(v) => format!(
-            "Multi({})",
-            v.iter()
-                .map(|x| x.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        Version { episode, version } => format!("Version({},v{})", episode, version),
-    }
+fn episode_to_value(ep: &zantetsu_core::types::EpisodeSpec) -> serde_json::Value {
+    serde_json::to_value(ep).unwrap_or(serde_json::Value::Null)
 }
 
 fn main() -> std::io::Result<()> {
@@ -65,7 +53,7 @@ fn main() -> std::io::Result<()> {
                     title: r.title.clone(),
                     group: r.group.clone(),
                     season: r.season,
-                    episode: r.episode.as_ref().map(episode_to_string),
+                    episode: r.episode.as_ref().map(episode_to_value),
                     resolution: r.resolution.as_ref().map(|x| format!("{:?}", x)),
                     video_codec: r.video_codec.as_ref().map(|x| format!("{:?}", x)),
                     audio_codec: r.audio_codec.as_ref().map(|x| format!("{:?}", x)),
@@ -119,7 +107,7 @@ fn main() -> std::io::Result<()> {
                     title: r.title.clone(),
                     group: r.group.clone(),
                     season: r.season,
-                    episode: r.episode.as_ref().map(episode_to_string),
+                    episode: r.episode.as_ref().map(episode_to_value),
                     resolution: r.resolution.as_ref().map(|x| format!("{:?}", x)),
                     video_codec: r.video_codec.as_ref().map(|x| format!("{:?}", x)),
                     audio_codec: r.audio_codec.as_ref().map(|x| format!("{:?}", x)),
@@ -173,7 +161,7 @@ fn main() -> std::io::Result<()> {
                     title: r.title.clone(),
                     group: r.group.clone(),
                     season: r.season,
-                    episode: r.episode.as_ref().map(episode_to_string),
+                    episode: r.episode.as_ref().map(episode_to_value),
                     resolution: r.resolution.as_ref().map(|x| format!("{:?}", x)),
                     video_codec: r.video_codec.as_ref().map(|x| format!("{:?}", x)),
                     audio_codec: r.audio_codec.as_ref().map(|x| format!("{:?}", x)),

@@ -79,12 +79,11 @@ impl ClientContext {
         }
 
         // Hardware decoding penalty
-        if let Some(codec) = file_video_codec {
-            if !self.hw_decode_codecs.contains(&codec) {
+        if let Some(codec) = file_video_codec
+            && !self.hw_decode_codecs.contains(&codec) {
                 // Massive penalty: codec not hardware-decodable
                 scores.video_codec = scores.video_codec.map(|s| s * 0.1);
             }
-        }
 
         scores
     }
