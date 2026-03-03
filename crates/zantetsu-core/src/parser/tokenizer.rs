@@ -56,8 +56,13 @@ impl Tokenizer {
                 if idx > current_start {
                     let text = input[current_start..idx].to_string();
                     if !text.is_empty() {
+                        let normalized = self.normalize(&text);
+                        if normalized.is_empty() {
+                            current_start = idx + c.len_utf8();
+                            continue;
+                        }
                         tokens.push(Token {
-                            text: self.normalize(&text),
+                            text: normalized,
                             start: current_start,
                             end: idx,
                             index: token_index,
@@ -73,8 +78,12 @@ impl Tokenizer {
         if current_start < input.len() {
             let text = input[current_start..].to_string();
             if !text.is_empty() {
+                let normalized = self.normalize(&text);
+                if normalized.is_empty() {
+                    return tokens;
+                }
                 tokens.push(Token {
-                    text: self.normalize(&text),
+                    text: normalized,
                     start: current_start,
                     end: input.len(),
                     index: token_index,

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead};
+use zantetsu_core::parser::{Parser, ParserConfig};
+use zantetsu_core::types::ParseMode;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ParseOutput {
@@ -92,6 +94,60 @@ fn main() -> std::io::Result<()> {
                     version: None,
                     confidence: 0.0,
                     mode: "neural".to_string(),
+                    error: Some(e.to_string()),
+                },
+            };
+
+            println!("{}", serde_json::to_string(&output).unwrap());
+        }
+    } else if mode == "auto" {
+        let parser = Parser::new(ParserConfig::new().with_mode(ParseMode::Auto))
+            .expect("Failed to create auto parser");
+
+        for line in stdin.lock().lines() {
+            let line = line?;
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let result = parser.parse(line);
+
+            let output = match result {
+                Ok(r) => ParseOutput {
+                    input: r.input.clone(),
+                    title: r.title.clone(),
+                    group: r.group.clone(),
+                    season: r.season,
+                    episode: r.episode.as_ref().map(episode_to_string),
+                    resolution: r.resolution.as_ref().map(|x| format!("{:?}", x)),
+                    video_codec: r.video_codec.as_ref().map(|x| format!("{:?}", x)),
+                    audio_codec: r.audio_codec.as_ref().map(|x| format!("{:?}", x)),
+                    source: r.source.as_ref().map(|x| format!("{:?}", x)),
+                    year: r.year,
+                    crc32: r.crc32.clone(),
+                    extension: r.extension.clone(),
+                    version: r.version,
+                    confidence: r.confidence,
+                    mode: "auto".to_string(),
+                    error: None,
+                },
+                Err(e) => ParseOutput {
+                    input: line.to_string(),
+                    title: None,
+                    group: None,
+                    season: None,
+                    episode: None,
+                    resolution: None,
+                    video_codec: None,
+                    audio_codec: None,
+                    source: None,
+                    year: None,
+                    crc32: None,
+                    extension: None,
+                    version: None,
+                    confidence: 0.0,
+                    mode: "auto".to_string(),
                     error: Some(e.to_string()),
                 },
             };
