@@ -2,6 +2,7 @@
 """Fetch Nyaa titles using search with different anime terms."""
 
 import json
+import urllib.parse
 import urllib.request
 import sys
 import random
@@ -209,9 +210,10 @@ seen = OrderedDict()
 
 # Try search with different terms
 for term in search_terms[:50]:
-    url = f"https://nyaaapi.onrender.com/nyaa?term={term}&c=1_2&limit=50"
+    encoded_term = urllib.parse.quote(term)
+    url = f"https://nyaaapi.onrender.com/nyaa?term={encoded_term}&c=1_2&limit=50"
     try:
-        data = json.loads(urllib.request.urlopen(url, timeout=5).read())
+        data = json.loads(urllib.request.urlopen(url, timeout=5).read().decode("utf-8"))
         for item in data.get("data", []):
             t = item.get("title", "").strip()
             if t and t not in seen:
@@ -223,7 +225,7 @@ print(f"Total unique from search: {len(seen)}", file=sys.stderr)
 
 # Also get recent
 url = "https://nyaaapi.onrender.com/nyaa?c=1_2&limit=200"
-data = json.loads(urllib.request.urlopen(url).read())
+data = json.loads(urllib.request.urlopen(url).read().decode("utf-8"))
 for item in data.get("data", []):
     t = item.get("title", "").strip()
     if t and t not in seen:
@@ -232,7 +234,7 @@ for item in data.get("data", []):
 print(f"Total with recent: {len(seen)}", file=sys.stderr)
 
 titles = list(seen.keys())
-with open("data/training/nyaa_titles_5000_raw.txt", "w") as f:
+with open("data/training/nyaa_titles_5000_raw.txt", "w", encoding="utf-8") as f:
     for i, t in enumerate(titles, 1):
         f.write(f"({i}) {t}\n")
 
