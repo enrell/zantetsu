@@ -9,6 +9,14 @@ Fast anime metadata parser - extracts title, episode, resolution, codecs from fi
 - **TypeScript support** - Full type definitions included
 - **Batch parsing** - Parse multiple filenames at once
 
+## Benchmark Snapshot
+
+Latest internal benchmark (March 2026, 148 tricky anime filenames):
+
+- **Zantetsu (Heuristic): 92.38% avg score**
+- PTT: 86.66% avg score
+- RTN: 84.94% avg score
+
 ## Installation
 
 ```bash

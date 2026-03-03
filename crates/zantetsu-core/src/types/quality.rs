@@ -170,20 +170,17 @@ impl fmt::Display for MediaSource {
 
 /// Parse mode selector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ParseMode {
     /// Full Neural CRF inference (requires model weights).
     Full,
     /// Lightweight regex + scene rules (no ML overhead).
     Light,
     /// Auto-select based on available resources.
+    #[default]
     Auto,
 }
 
-impl Default for ParseMode {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
 
 impl fmt::Display for ParseMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

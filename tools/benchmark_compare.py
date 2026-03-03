@@ -54,10 +54,10 @@ def parse_with_ptt(filename: str) -> dict[str, Any]:
     """Parse using PTT (Python Torrent Title parser)."""
     result = ptt_parse(filename)
 
-    def convert_episode(e: list[int]) -> str:
+    def convert_episode(e: list[int]) -> dict:
         if len(e) == 1:
-            return f"Single({e[0]})"
-        return f"Multi({','.join(map(str, e))})"
+            return {"Single": e[0]}
+        return {"Multi": e}
 
     def convert_season(s: list[int]) -> int | None:
         return s[0] if s else None
@@ -87,10 +87,10 @@ def parse_with_rtn(filename: str) -> dict[str, Any]:
     # RTN returns ParsedData directly, not wrapped
     data = result
 
-    def convert_episode(e: list[int]) -> str:
+    def convert_episode(e: list[int]) -> dict:
         if len(e) == 1:
-            return f"Single({e[0]})"
-        return f"Multi({','.join(map(str, e))})"
+            return {"Single": e[0]}
+        return {"Multi": e}
 
     def convert_season(s: list[int]) -> int | None:
         return s[0] if s else None

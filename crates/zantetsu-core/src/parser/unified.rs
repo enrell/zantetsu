@@ -131,6 +131,7 @@ impl Parser {
     }
 
     /// Create a new parser with default configuration.
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Result<Self> {
         Self::new(ParserConfig::default())
     }

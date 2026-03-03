@@ -26,16 +26,16 @@ Zantetsu transforms chaotic, unstructured media data (torrent names, file names,
 
 ## Benchmarks
 
-Zantetsu is benchmarked against popular Python libraries `PTT` and `RTN` using a dataset of 100+ complex anime filenames.
+Latest benchmark run (`tools/benchmark_compare.py`, March 2026) on 148 tricky anime filenames:
 
-| Parser | Accuracy (Avg) | Perfect Matches |
-|--------|----------------|-----------------|
-| **Zantetsu (Heuristic)** | **78.4%** | 0% |
-| **Zantetsu (Neural)** | 50.4% | 0% |
-| Python Torrent Tools (PTT) | 77.9% | 1% |
-| Release Title Normalizer (RTN) | 76.7% | 0% |
+| Parser | Avg Score | Min Score |
+|--------|-----------|-----------|
+| **Zantetsu (Heuristic)** | **92.38%** | **79.09%** |
+| Python Torrent Tools (PTT) | 86.66% | 36.36% |
+| Release Title Normalizer (RTN) | 84.94% | 27.27% |
+| Zantetsu (Neural, early stage) | 50.39% | 18.18% |
 
-*Note: Neural model is in early stages and improving via RLAIF.*
+The heuristic parser currently provides the best overall accuracy and robustness for production use.
 
 ## Architecture
 

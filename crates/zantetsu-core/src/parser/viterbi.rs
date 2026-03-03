@@ -113,9 +113,9 @@ impl ViterbiDecoder {
         // Find best final tag
         let mut best_final_tag = 0;
         let mut best_final_score = f32::NEG_INFINITY;
-        for tag in 0..self.num_tags {
-            if dp[seq_len - 1][tag].score > best_final_score {
-                best_final_score = dp[seq_len - 1][tag].score;
+        for (tag, cell) in dp[seq_len - 1].iter().enumerate().take(self.num_tags) {
+            if cell.score > best_final_score {
+                best_final_score = cell.score;
                 best_final_tag = tag;
             }
         }
@@ -144,12 +144,11 @@ impl ViterbiDecoder {
         // Build constraint mask
         let mut valid_transitions: Vec<Vec<bool>> = vec![vec![false; self.num_tags]; self.num_tags];
 
-        for prev_idx in 0..self.num_tags {
+        for (prev_idx, row) in valid_transitions.iter_mut().enumerate().take(self.num_tags) {
             if let Some(prev_tag) = BioTag::from_index(prev_idx) {
-                for curr_idx in 0..self.num_tags {
+                for (curr_idx, cell) in row.iter_mut().enumerate().take(self.num_tags) {
                     if let Some(curr_tag) = BioTag::from_index(curr_idx) {
-                        valid_transitions[prev_idx][curr_idx] =
-                            BioTag::is_valid_transition(prev_tag, curr_tag);
+                        *cell = BioTag::is_valid_transition(prev_tag, curr_tag);
                     }
                 }
             }
@@ -198,9 +197,9 @@ impl ViterbiDecoder {
         // Backtrack
         let mut best_final_tag = 0;
         let mut best_final_score = f32::NEG_INFINITY;
-        for tag in 0..self.num_tags {
-            if dp[seq_len - 1][tag] > best_final_score {
-                best_final_score = dp[seq_len - 1][tag];
+        for (tag, &score) in dp[seq_len - 1].iter().enumerate().take(self.num_tags) {
+            if score > best_final_score {
+                best_final_score = score;
                 best_final_tag = tag;
             }
         }

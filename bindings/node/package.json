@@ -1,6 +1,6 @@
 {
   "name": "zantetsu",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Fast anime metadata parser - extracts title, episode, resolution, codecs from filenames",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
