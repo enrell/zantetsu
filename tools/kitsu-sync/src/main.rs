@@ -29,19 +29,24 @@ fn default_dump_dir() -> PathBuf {
 struct Cli {
     #[command(subcommand)]
     command: Commands,
-    
+
     /// Database host
     #[arg(short = 'H', long, env = "KITSU_DB_HOST", default_value = "localhost")]
     host: String,
-    
+
     /// Database port
     #[arg(short = 'p', long, env = "KITSU_DB_PORT", default_value_t = 5432)]
     port: u16,
-    
+
     /// Database name
-    #[arg(short, long, env = "KITSU_DB_NAME", default_value = "kitsu_development")]
+    #[arg(
+        short,
+        long,
+        env = "KITSU_DB_NAME",
+        default_value = "kitsu_development"
+    )]
     database: String,
-    
+
     /// Database user
     #[arg(short = 'U', long, env = "KITSU_DB_USER", default_value = "postgres")]
     user: String,
@@ -99,7 +104,7 @@ impl DatabaseConfig {
             self.user, self.host, self.port, self.database
         )
     }
-    
+
     /// Check if database is accessible
     pub async fn check_connection(&self) -> Result<bool> {
         // We'll use the shell script for now
@@ -123,22 +128,22 @@ impl KitsuDumpManager {
             db_config,
         }
     }
-    
+
     /// Get path to the compressed dump file
     pub fn dump_file_path(&self) -> PathBuf {
         self.dump_dir.join("latest.sql.gz")
     }
-    
+
     /// Get path to the extracted SQL file
     pub fn sql_file_path(&self) -> PathBuf {
         self.dump_dir.join("latest.sql")
     }
-    
+
     /// Check if dump file exists
     pub fn dump_exists(&self) -> bool {
         self.dump_file_path().exists()
     }
-    
+
     /// Check if SQL file exists
     pub fn sql_exists(&self) -> bool {
         self.sql_file_path().exists()
@@ -148,7 +153,7 @@ impl KitsuDumpManager {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    
+
     let cli = Cli::parse();
     let dump_dir = cli.dump_dir.unwrap_or_else(default_dump_dir);
     let db_config = DatabaseConfig {
@@ -177,10 +182,10 @@ async fn main() -> Result<()> {
     if let Some(password) = &db_config.password {
         cmd.env("KITSU_DB_PASSWORD", password);
     }
-    
+
     // Ensure dump directory exists
     std::fs::create_dir_all(&dump_dir)?;
-    
+
     match cli.command {
         Commands::Download { force } => {
             info!("Downloading Kitsu database dump...");
@@ -211,10 +216,10 @@ async fn main() -> Result<()> {
                 print!("Are you sure? [y/N]: ");
                 use std::io::Write;
                 std::io::stdout().flush()?;
-                
+
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
-                
+
                 if !input.trim().eq_ignore_ascii_case("y") {
                     info!("Clean cancelled");
                     return Ok(());
@@ -226,27 +231,26 @@ async fn main() -> Result<()> {
             cmd.arg("status");
         }
     }
-    
-    let status = cmd.status()
-        .context("Failed to execute sync script")?;
-    
+
+    let status = cmd.status().context("Failed to execute sync script")?;
+
     if !status.success() {
         anyhow::bail!("Sync script failed with exit code: {:?}", status.code());
     }
-    
+
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_default_dump_dir() {
         let dir = default_dump_dir();
         assert!(dir.to_string_lossy().contains("zantetsu"));
     }
-    
+
     #[test]
     fn test_database_config() {
         let config = DatabaseConfig {
@@ -256,7 +260,7 @@ mod tests {
             user: "postgres".to_string(),
             password: Some("postgres".to_string()),
         };
-        
+
         let conn_str = config.connection_string();
         assert!(conn_str.contains("localhost"));
         assert!(conn_str.contains("5432"));

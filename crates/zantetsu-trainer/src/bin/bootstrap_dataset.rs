@@ -1,7 +1,7 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
-use std::collections::HashSet;
 
 use serde::Serialize;
 use zantetsu_core::parser::tokenizer::Token;
@@ -16,10 +16,10 @@ struct BioSample {
 
 fn strip_prefix(line: &str) -> String {
     let mut cleaned = line.trim();
-    if cleaned.starts_with('(') {
-        if let Some(pos) = cleaned.find(')') {
-            cleaned = &cleaned[pos + 1..];
-        }
+    if cleaned.starts_with('(')
+        && let Some(pos) = cleaned.find(')')
+    {
+        cleaned = &cleaned[pos + 1..];
     }
     cleaned.trim().to_string()
 }
@@ -32,7 +32,13 @@ fn normalize_words(text: &str) -> HashSet<String> {
         .collect()
 }
 
-fn mark_sequence(tags: &mut [BioTag], idx: usize, begin: BioTag, inside: BioTag, active: &mut bool) {
+fn mark_sequence(
+    tags: &mut [BioTag],
+    idx: usize,
+    begin: BioTag,
+    inside: BioTag,
+    active: &mut bool,
+) {
     tags[idx] = if *active { inside } else { begin };
     *active = true;
 }
@@ -59,16 +65,8 @@ fn align_tags(tokens: &[Token], result: &ParseResult) -> Vec<BioTag> {
         .into_iter()
         .flat_map(|s| normalize_words(&s))
         .collect();
-    let season_words: HashSet<String> = result
-        .season
-        .map(|s| s.to_string())
-        .into_iter()
-        .collect();
-    let year_words: HashSet<String> = result
-        .year
-        .map(|y| y.to_string())
-        .into_iter()
-        .collect();
+    let season_words: HashSet<String> = result.season.map(|s| s.to_string()).into_iter().collect();
+    let year_words: HashSet<String> = result.year.map(|y| y.to_string()).into_iter().collect();
     let crc_words: HashSet<String> = result
         .crc32
         .as_deref()
@@ -92,14 +90,8 @@ fn align_tags(tokens: &[Token], result: &ParseResult) -> Vec<BioTag> {
             .into_iter()
             .map(str::to_string)
             .collect(),
-        Some(Resolution::FHD1080) => ["1080", "1080p"]
-            .into_iter()
-            .map(str::to_string)
-            .collect(),
-        Some(Resolution::HD720) => ["720", "720p"]
-            .into_iter()
-            .map(str::to_string)
-            .collect(),
+        Some(Resolution::FHD1080) => ["1080", "1080p"].into_iter().map(str::to_string).collect(),
+        Some(Resolution::HD720) => ["720", "720p"].into_iter().map(str::to_string).collect(),
         Some(Resolution::SD480) => ["480", "480p", "576", "576p"]
             .into_iter()
             .map(str::to_string)
@@ -125,7 +117,13 @@ fn align_tags(tokens: &[Token], result: &ParseResult) -> Vec<BioTag> {
 
         // Group matching (exact token membership, near head)
         if !group_words.is_empty() && i < 6 && group_words.contains(t_text) {
-            mark_sequence(&mut tags, i, BioTag::BeginGroup, BioTag::InsideGroup, &mut in_group);
+            mark_sequence(
+                &mut tags,
+                i,
+                BioTag::BeginGroup,
+                BioTag::InsideGroup,
+                &mut in_group,
+            );
             in_title = false;
             continue;
         } else {
@@ -134,7 +132,13 @@ fn align_tags(tokens: &[Token], result: &ParseResult) -> Vec<BioTag> {
 
         // Title matching
         if !title_words.is_empty() && title_words.contains(t_text) {
-            mark_sequence(&mut tags, i, BioTag::BeginTitle, BioTag::InsideTitle, &mut in_title);
+            mark_sequence(
+                &mut tags,
+                i,
+                BioTag::BeginTitle,
+                BioTag::InsideTitle,
+                &mut in_title,
+            );
             in_episode = false;
             in_season = false;
             continue;
@@ -232,36 +236,38 @@ async fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        if let Ok(result) = parser.parse(&cleaned) {
-            if result.confidence >= MIN_CONFIDENCE
-                && (result.title.is_some() || result.group.is_some())
-            {
-                let tokens: Vec<Token> = tokenizer
-                    .tokenize(&cleaned)
-                    .into_iter()
-                    .filter(|t| !t.text.is_empty())
-                    .collect();
-                if tokens.len() < 3 {
-                    continue;
-                }
-
-                let tags = align_tags(&tokens, &result);
-                if tags.iter().all(|t| *t == BioTag::Outside) {
-                    continue;
-                }
-
-                let sample = BioSample {
-                    tokens: tokens.into_iter().map(|t| t.text).collect(),
-                    ner_tags: tags.into_iter().map(|t| t.to_string()).collect(),
-                };
-
-                let json = serde_json::to_string(&sample)?;
-                writeln!(out_file, "{}", json)?;
-                success_count += 1;
+        if let Ok(result) = parser.parse(&cleaned)
+            && result.confidence >= MIN_CONFIDENCE
+            && (result.title.is_some() || result.group.is_some())
+        {
+            let tokens: Vec<Token> = tokenizer
+                .tokenize(&cleaned)
+                .into_iter()
+                .filter(|t| !t.text.is_empty())
+                .collect();
+            if tokens.len() < 3 {
+                continue;
             }
+
+            let tags = align_tags(&tokens, &result);
+            if tags.iter().all(|t| *t == BioTag::Outside) {
+                continue;
+            }
+
+            let sample = BioSample {
+                tokens: tokens.into_iter().map(|t| t.text).collect(),
+                ner_tags: tags.into_iter().map(|t| t.to_string()).collect(),
+            };
+
+            let json = serde_json::to_string(&sample)?;
+            writeln!(out_file, "{}", json)?;
+            success_count += 1;
         }
     }
 
-    println!("Successfully bootstrapped {} samples to {}", success_count, output_path);
+    println!(
+        "Successfully bootstrapped {} samples to {}",
+        success_count, output_path
+    );
     Ok(())
 }

@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use zantetsu_core::parser::{HeuristicParser, NeuralParser, Parser, ParserConfig};
 use zantetsu_core::types::ParseMode;
 

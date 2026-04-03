@@ -9,5 +9,5 @@ pub use bio_tags::{BioTag, Entity, EntityType};
 pub use heuristic::HeuristicParser;
 pub use neural::NeuralParser;
 pub use tokenizer::{Token, Tokenizer};
-pub use unified::{parse, parse_with_mode, Parser, ParserConfig};
+pub use unified::{Parser, ParserConfig, parse, parse_with_mode};
 pub use viterbi::ViterbiDecoder;

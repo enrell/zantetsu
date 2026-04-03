@@ -7,6 +7,6 @@ pub mod data;
 pub mod model;
 pub mod trainer;
 
-pub use data::{load_bio_dataset, CharVocab, TrainingExample, BIO_LABELS};
-pub use model::{viterbi_decode, CrfModel, NUM_LABELS};
-pub use trainer::{run_training, Trainer};
+pub use data::{BIO_LABELS, CharVocab, TrainingExample, load_bio_dataset};
+pub use model::{CrfModel, NUM_LABELS, viterbi_decode};
+pub use trainer::{Trainer, run_training};

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/zantetsu",
     "crates/zantetsu-core",
     "crates/zantetsu-vecdb",
     "crates/zantetsu-trainer",
@@ -10,11 +11,12 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.3"
 edition = "2024"
 authors = ["kokoro"]
 license = "MIT"
 rust-version = "1.85"
+repository = "https://github.com/enrell/zantetsu"
 
 [workspace.dependencies]
 # ML Inference
@@ -58,9 +60,9 @@ clap = { version = "4", features = ["derive"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 
 # Internal crates
-zantetsu-core = { path = "crates/zantetsu-core" }
-zantetsu-vecdb = { path = "crates/zantetsu-vecdb" }
-zantetsu-trainer = { path = "crates/zantetsu-trainer" }
+zantetsu-core = { path = "crates/zantetsu-core", version = "0.1.3" }
+zantetsu-vecdb = { path = "crates/zantetsu-vecdb", version = "0.1.3" }
+zantetsu-trainer = { path = "crates/zantetsu-trainer", version = "0.1.3" }
 
 [profile.release]
 lto = "thin"

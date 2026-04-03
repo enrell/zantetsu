@@ -1,0 +1,22 @@
+[package]
+name = "zantetsu-python"
+version = "0.1.2"
+edition = "2024"
+authors = ["kokoro"]
+license = "MIT"
+description = "Python bindings for Zantetsu anime metadata parser"
+readme = "README.md"
+
+[workspace]
+
+[lib]
+name = "_zantetsu"
+crate-type = ["cdylib"]
+
+[dependencies]
+zantetsu-core = { path = "../../crates/zantetsu-core", version = "0.1.2" }
+pyo3 = { version = "0.25", features = ["extension-module"] }
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]

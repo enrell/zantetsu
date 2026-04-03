@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+readme = "README.md"
 
 [lib]
 crate-type = ["cdylib"]
@@ -28,7 +29,7 @@ tracing = { workspace = true }
 # napi-derive = "2"
 napi = { version = "2", features = ["napi9"], optional = true }
 napi-derive = { version = "2", optional = true }
-pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.25", features = ["extension-module"], optional = true }
 
 [features]
 default = []

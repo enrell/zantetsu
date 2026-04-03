@@ -11,12 +11,22 @@ use crate::types::{
 /// for instant results on any device. Accuracy is lower than the Neural CRF
 /// engine but latency is sub-microsecond.
 pub struct HeuristicParser {
+    // Resolution patterns
     re_resolution: Regex,
     re_resolution_dim: Regex,
+
+    // Codec patterns
     re_vcodec: Regex,
     re_acodec: Regex,
+
+    // Source patterns
     re_source: Regex,
+
+    // CRC32 patterns
     re_crc32: Regex,
+    re_crc32_no_bracket: Regex,
+
+    // Season and episode patterns
     re_season_episode: Regex,
     re_episode_range: Regex,
     re_episode_version: Regex,
@@ -24,10 +34,30 @@ pub struct HeuristicParser {
     re_explicit_episode: Regex,
     re_dash_episode: Regex,
     re_season: Regex,
+    #[allow(dead_code)]
+    re_season_long: Regex,
+
+    // Version patterns
     re_version: Regex,
+
+    // Year patterns
     re_year: Regex,
+
+    // File patterns
     re_extension: Regex,
     re_group: Regex,
+
+    // Special episode patterns
+    #[allow(dead_code)]
+    re_special_episode: Regex,
+
+    // Multi-audio patterns
+    #[allow(dead_code)]
+    re_dual_audio: Regex,
+
+    // Subtitle patterns
+    #[allow(dead_code)]
+    re_multi_sub: Regex,
 }
 
 impl HeuristicParser {
@@ -39,18 +69,28 @@ impl HeuristicParser {
     /// (should never happen with the static patterns defined here).
     pub fn new() -> Result<Self> {
         Ok(Self {
+            // Resolution patterns
             re_resolution: Regex::new(r"(?i)\b(2160|1080|720|480)[pi]\b")?,
             re_resolution_dim: Regex::new(r"(?i)(\d{3,4})\s*x\s*(\d{3,4})")?,
+
+            // Codec patterns
             re_vcodec: Regex::new(
                 r"(?i)\b(x\.?264|x\.?265|h\.?264|h\.?265|hevc|av1|vp9|mpeg4|xvid)\b",
             )?,
             re_acodec: Regex::new(
                 r"(?i)\b(flac|aac|opus|ac3|dts(?:-?hd)?|truehd|true\shd|mp3|vorbis|ogg|e-?aac\+?)\b",
             )?,
+
+            // Source patterns
             re_source: Regex::new(
                 r"(?i)(?:\b|_)(blu-?ray\s*remux|bdremux|bd-?remux|blu-?ray|bdrip|web-?dl|webrip|web-?rip|web|hdtv|dvd(?:rip)?|laserdisc|ld|vhs|bd)(?:\b|_)",
             )?,
+
+            // CRC32 patterns
             re_crc32: Regex::new(r"\[([0-9A-Fa-f]{8})\]")?,
+            re_crc32_no_bracket: Regex::new(r"(?i)(?:^|[\s\-_\.\(\[])((?:[0-9a-f]{8}))")?,
+
+            // Season and episode patterns
             re_season_episode: Regex::new(r"(?i)\bS(\d{1,2})E(\d{1,4})\b")?,
             re_episode_range: Regex::new(
                 r"(?i)(?:[\s\-_\.]|(?:^|[\s\-_\.\[\(])ep?\.?\s*)(\d{1,4})\s*[-~]\s*(\d{1,4})\b",
@@ -66,14 +106,36 @@ impl HeuristicParser {
                 r"(?i)(?:[\s\.\-_\[\(])(?:ep?\.?|episode|session)\s*(\d{1,4})\b",
             )?,
             // Standard anime separator: " - ## " with flexible spacing
-            re_dash_episode: Regex::new(
-                r"(?:\s+-\s+)(\d{1,4})(?:\b|[^0-9v\-~])",
-            )?,
+            re_dash_episode: Regex::new(r"(?:\s+-\s+)(\d{1,4})(?:\b|[^0-9v\-~])")?,
+
+            // Season patterns
             re_season: Regex::new(r"(?i)(?:\bS|season\s*)(\d{1,2})\b")?,
+            re_season_long: Regex::new(r"(?i)\bseason\s*(\d{1,2})\b")?,
+
+            // Version patterns
             re_version: Regex::new(r"(?i)\[v(\d)\]|\bv(\d)\b")?,
+
+            // Year patterns
             re_year: Regex::new(r"\b((?:19|20)\d{2})\b")?,
+
+            // File patterns
             re_extension: Regex::new(r"\.(\w{2,4})$")?,
             re_group: Regex::new(r"^\[([^\]]+)\]")?,
+
+            // Special episode patterns (OVA, ONA, Movie, etc.)
+            re_special_episode: Regex::new(
+                r"(?i)\b(OVA|ONA|OAD|Movie|Film|Special|SP|ED|NCOP|NCED|Preview|Trailer|Extra)\b",
+            )?,
+
+            // Multi-audio patterns
+            re_dual_audio: Regex::new(
+                r"(?i)\b(?:dual[\s\-_]?audio|multi[\s\-_]?audio|multi[\s\-_]?(?:lang|language))\b",
+            )?,
+
+            // Subtitle patterns
+            re_multi_sub: Regex::new(
+                r"(?i)\b(?:multi[\s\-_]?(?:sub|subs|subtitle)|multiple[\s\-_]?subtitle|multi)\b",
+            )?,
         })
     }
 
@@ -93,7 +155,12 @@ impl HeuristicParser {
         // Extract structured metadata (order matters for disambiguation)
         result.group = self.extract_group(trimmed);
         result.extension = self.extract_extension(trimmed);
-        result.crc32 = self.extract_crc32(trimmed);
+
+        // Try CRC32 with brackets first, then without
+        result.crc32 = self
+            .extract_crc32(trimmed)
+            .or_else(|| self.extract_crc32_no_bracket(trimmed));
+
         result.resolution = self.extract_resolution(trimmed);
         result.video_codec = self.extract_video_codec(trimmed);
         result.audio_codec = self.extract_audio_codec(trimmed);
@@ -131,6 +198,21 @@ impl HeuristicParser {
         self.re_crc32.captures(input).map(|c| c[1].to_uppercase())
     }
 
+    fn extract_crc32_no_bracket(&self, input: &str) -> Option<String> {
+        self.re_crc32_no_bracket.captures(input).and_then(|c| {
+            let crc = c.get(2)?.as_str();
+            // Only return if it looks like a valid CRC32 (8 hex chars)
+            if crc.len() == 8 && crc.chars().all(|ch| ch.is_ascii_hexdigit()) {
+                // Make sure it's not part of a number (like 1080p or episode number)
+                let prefix = &input[..c.get(1).map(|m| m.start()).unwrap_or(0)];
+                if !prefix.ends_with(char::is_numeric) {
+                    return Some(crc.to_uppercase());
+                }
+            }
+            None
+        })
+    }
+
     fn extract_resolution(&self, input: &str) -> Option<Resolution> {
         // Try standard NNNNp/NNNNi format first
         if let Some(res) = self
@@ -148,18 +230,16 @@ impl HeuristicParser {
         }
 
         // Try WIDTHxHEIGHT format (e.g. 1920x1080, 1280x720)
-        self.re_resolution_dim
-            .captures(input)
-            .and_then(|c| {
-                let height: u32 = c[2].parse().ok()?;
-                match height {
-                    2160 => Some(Resolution::UHD2160),
-                    1080 => Some(Resolution::FHD1080),
-                    720 => Some(Resolution::HD720),
-                    480 => Some(Resolution::SD480),
-                    _ => None,
-                }
-            })
+        self.re_resolution_dim.captures(input).and_then(|c| {
+            let height: u32 = c[2].parse().ok()?;
+            match height {
+                2160 => Some(Resolution::UHD2160),
+                1080 => Some(Resolution::FHD1080),
+                720 => Some(Resolution::HD720),
+                480 => Some(Resolution::SD480),
+                _ => None,
+            }
+        })
     }
 
     fn extract_video_codec(&self, input: &str) -> Option<VideoCodec> {
@@ -218,21 +298,19 @@ impl HeuristicParser {
 
     fn extract_season(&self, input: &str) -> Option<u32> {
         // Try S## pattern (but not S##E## which is handled by extract_season_episode)
-        self.re_season
-            .captures(input)
-            .and_then(|c| {
-                // Verify it's not part of S##E## — if so, re_season_episode handles it
-                let full_match = c.get(0)?;
-                let after = &input[full_match.end()..];
-                // If immediately followed by E+digits, skip it (handled elsewhere)
-                if after.starts_with('E') || after.starts_with('e') {
-                    let rest = &after[1..];
-                    if rest.starts_with(|ch: char| ch.is_ascii_digit()) {
-                        return None;
-                    }
+        self.re_season.captures(input).and_then(|c| {
+            // Verify it's not part of S##E## — if so, re_season_episode handles it
+            let full_match = c.get(0)?;
+            let after = &input[full_match.end()..];
+            // If immediately followed by E+digits, skip it (handled elsewhere)
+            if after.starts_with('E') || after.starts_with('e') {
+                let rest = &after[1..];
+                if rest.starts_with(|ch: char| ch.is_ascii_digit()) {
+                    return None;
                 }
-                c[1].parse().ok()
-            })
+            }
+            c[1].parse().ok()
+        })
     }
 
     /// Extract combined S##E## season+episode notation.
@@ -404,9 +482,10 @@ impl HeuristicParser {
     /// Check if a number is likely a year or resolution, not an episode.
     fn is_year_or_resolution(&self, n: u32, result: &ParseResult) -> bool {
         if let Some(year) = result.year
-            && n == u32::from(year) {
-                return true;
-            }
+            && n == u32::from(year)
+        {
+            return true;
+        }
         self.is_resolution_number(n)
     }
 
@@ -431,15 +510,17 @@ impl HeuristicParser {
 
         // Remove the group tag from the start
         if result.group.is_some()
-            && let Some(end) = work.find(']') {
-                work = work[end + 1..].to_string();
-            }
+            && let Some(end) = work.find(']')
+        {
+            work = work[end + 1..].to_string();
+        }
 
         // Remove file extension from the end
         if let Some(ref ext) = result.extension
-            && let Some(pos) = work.rfind(&format!(".{ext}")) {
-                work = work[..pos].to_string();
-            }
+            && let Some(pos) = work.rfind(&format!(".{ext}"))
+        {
+            work = work[..pos].to_string();
+        }
 
         // Remove known metadata tokens (NOT episode)
         let patterns_to_strip: Vec<&Regex> = vec![
@@ -509,7 +590,10 @@ impl HeuristicParser {
 
         // Phase 1: explicit E##/Ep## markers — sentinel these
         if self.re_explicit_episode.is_match(work) {
-            *work = self.re_explicit_episode.replace_all(work, "\x00").to_string();
+            *work = self
+                .re_explicit_episode
+                .replace_all(work, "\x00")
+                .to_string();
             return;
         }
 
@@ -616,8 +700,15 @@ impl HeuristicParser {
 /// Strip common non-title tokens from the end of a title string.
 fn strip_trailing_noise(title: &str) -> String {
     let noise_tokens = [
-        "RAW", "VOSTFR", "MULTI", "Hi10P", "10bit", "Dual Audio",
-        "Multiple Subtitle", "Multi-Subs", "Main 10",
+        "RAW",
+        "VOSTFR",
+        "MULTI",
+        "Hi10P",
+        "10bit",
+        "Dual Audio",
+        "Multiple Subtitle",
+        "Multi-Subs",
+        "Main 10",
     ];
     let mut result = title.to_string();
     let mut changed = true;

@@ -1,0 +1,16 @@
+[package]
+name = "zantetsu"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Ultra-fast, intelligent library for anime metadata extraction and normalization"
+repository = "https://github.com/enrell/zantetsu"
+keywords = ["anime", "parser", "metadata", "torrent", "ner"]
+categories = ["parser-implementations", "multimedia"]
+
+[dependencies]
+zantetsu-core = { workspace = true }
+zantetsu-vecdb = { workspace = true }
+zantetsu-trainer = { workspace = true }

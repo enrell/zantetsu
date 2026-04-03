@@ -1,6 +1,6 @@
 //! Training loop for the CRF model.
 
-use crate::data::{load_bio_dataset, CharVocab};
+use crate::data::{CharVocab, load_bio_dataset};
 use crate::model::CrfModel;
 
 pub struct Trainer {

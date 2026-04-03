@@ -184,7 +184,7 @@ impl CrfModel {
         // Simple perceptron-style update
         let preds = self.predict(tokens);
 
-        for (_i, (&pred, &true_label)) in preds.iter().zip(true_labels.iter()).enumerate() {
+        for (&pred, &true_label) in preds.iter().zip(true_labels.iter()) {
             if pred != true_label {
                 // Update emission weights
                 for label in 0..NUM_LABELS {
@@ -214,7 +214,7 @@ impl CrfModel {
 
         // Constrain transitions
         // B-TITLE can only be followed by I-TITLE or O (not directly O after B without I)
-        self.transition[0 * NUM_LABELS + 1] = self.transition[0 * NUM_LABELS + 1].min(-1.0);
+        self.transition[1] = self.transition[1].min(-1.0);
         // B -> O is bad
     }
 
