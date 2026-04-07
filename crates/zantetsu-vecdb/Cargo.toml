@@ -5,7 +5,13 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+rust-version.workspace = true
 readme = "README.md"
+repository.workspace = true
+homepage = "https://github.com/enrell/zantetsu"
+documentation = "https://docs.rs/zantetsu-vecdb"
+keywords = ["anime", "matching", "graphql", "kitsu", "metadata"]
+categories = ["text-processing", "multimedia"]
 
 [dependencies]
 dirs = "5.0.1"

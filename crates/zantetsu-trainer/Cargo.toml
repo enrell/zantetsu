@@ -5,7 +5,13 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+rust-version.workspace = true
 readme = "README.md"
+repository.workspace = true
+homepage = "https://github.com/enrell/zantetsu"
+documentation = "https://docs.rs/zantetsu-trainer"
+keywords = ["anime", "training", "ml", "parser", "dataset"]
+categories = ["science", "multimedia"]
 
 [dependencies]
 zantetsu-core = { workspace = true }

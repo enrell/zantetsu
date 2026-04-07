@@ -5,7 +5,13 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+rust-version.workspace = true
 readme = "README.md"
+repository.workspace = true
+homepage = "https://github.com/enrell/zantetsu"
+documentation = "https://docs.rs/zantetsu-core"
+keywords = ["anime", "parser", "metadata", "torrent", "core"]
+categories = ["parser-implementations", "multimedia"]
 
 [dependencies]
 # ML inference (Phase 2)

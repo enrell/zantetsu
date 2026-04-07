@@ -7,7 +7,9 @@ license.workspace = true
 rust-version.workspace = true
 readme = "README.md"
 description = "Ultra-fast, intelligent library for anime metadata extraction and normalization"
-repository = "https://github.com/enrell/zantetsu"
+repository.workspace = true
+homepage = "https://github.com/enrell/zantetsu"
+documentation = "https://docs.rs/zantetsu"
 keywords = ["anime", "parser", "metadata", "torrent", "ner"]
 categories = ["parser-implementations", "multimedia"]
 

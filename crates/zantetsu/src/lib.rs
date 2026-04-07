@@ -2,6 +2,13 @@
 //!
 //! Ultra-fast, intelligent library for anime metadata extraction and normalization.
 //!
+//! Crates:
+//! - [`zantetsu`](https://docs.rs/zantetsu) - unified API surface
+//! - [`zantetsu-core`](https://docs.rs/zantetsu-core) - parsing engine
+//! - [`zantetsu-vecdb`](https://docs.rs/zantetsu-vecdb) - canonical title matching
+//! - [`zantetsu-trainer`](https://docs.rs/zantetsu-trainer) - training workflows
+//! - [`zantetsu-ffi`](https://docs.rs/zantetsu-ffi) - Node/Python/C bindings
+//!
 //! ## Features
 //!
 //! - **Heuristic Parsing**: Regex-based parsing for fast, reliable extraction
@@ -35,13 +42,6 @@
 //!
 //! The engine automatically selects the best parser based on availability and confidence.
 //!
-//! ## Crates
-//!
-//! - `zantetsu-core` — Parsing engine (heuristic + neural + character CNN)
-//! - `zantetsu-vecdb` — Canonical title matching via Kitsu dumps or remote endpoints
-//! - `zantetsu-trainer` — Model training and RLAIF workflows
-//! - `zantetsu-ffi` — Multi-language bindings (TypeScript, Python, C/C++)
-
 pub use zantetsu_core::error::{Result, ZantetsuError};
 pub use zantetsu_core::parser::{HeuristicParser, NeuralParser};
 pub use zantetsu_core::scoring::{QualityProfile, QualityScores};
