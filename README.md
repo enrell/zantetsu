@@ -19,7 +19,7 @@ Zantetsu transforms chaotic, unstructured media data (torrent names, file names,
 
 - **Multi-Model Parsing**: Heuristic parser (production-ready) + Neural CRF (DistilBERT) + Character CNN (in development)
 - **RAD-Augmented Training**: Reinforcement Learning with Augmented Data — 430k+ synthetic samples with character-level augmentations
-- **Semantic Search**: HNSW vector index with hybrid (semantic + lexical) search
+- **Canonical Title Matching**: Match parsed titles through a local Kitsu SQL dump or a remote GraphQL endpoint
 - **AnimeDB Validation**: Ground-truth validation against AnimeDB API for accuracy measurement
 - **Quality Scoring**: Configurable quality profiles for release validation
 - **FFI Bindings**: Native bindings for TypeScript, Python, and C/C++
@@ -27,7 +27,7 @@ Zantetsu transforms chaotic, unstructured media data (torrent names, file names,
 
 ## Benchmarks
 
-Latest benchmark run (`tools/benchmark_compare.py`, March 2026) on 148 tricky anime filenames:
+Latest benchmark run (`tools/benchmark/compare.py`, March 2026) on 148 tricky anime filenames:
 
 | Parser | Avg Score | Min Score |
 |--------|-----------|-----------|
@@ -67,14 +67,14 @@ Latest benchmark run (`tools/benchmark_compare.py`, March 2026) on 148 tricky an
 ┌───────────────▼───────────┐ ┌───────────▼────────────────┐
 │      zantetsu-core        │ │      zantetsu-vecdb        │
 │  ┌─────────────────────┐  │ │  ┌─────────────────────┐   │
-│  │  Heuristic Parser   │  │ │  │  HNSW Vector Index  │   │
-│  │  (regex + rules)    │  │ │  │  (all-MiniLM-L6-v2) │   │
+│  │  Heuristic Parser   │  │ │  │  Kitsu Dump Reader  │   │
+│  │  (regex + rules)    │  │ │  │  (.sql / .sql.gz)   │   │
 │  ├─────────────────────┤  │ │  ├─────────────────────┤   │
-│  │  Neural CRF Engine  │  │ │  │  Hybrid Search      │   │
-│  │  (DistilBERT+Viterbi)│ │ │  ├─────────────────────┤   │
-│  ├─────────────────────┤  │ │  │  SQLite Cache       │   │
-│  │  Character CNN      │  │ │  └─────────────────────┘   │
-│  │  (CNN+BiLSTM+CRF)   │  │ │                             │
+│  │  Neural CRF Engine  │  │ │  │  Remote GraphQL     │   │
+│  │  (DistilBERT+Viterbi)│ │ │  │  Client             │   │
+│  ├─────────────────────┤  │ │  ├─────────────────────┤   │
+│  │  Character CNN      │  │ │  │  Fuzzy Title        │   │
+│  │  (CNN+BiLSTM+CRF)   │  │ │  │  Scoring            │   │
 │  ├─────────────────────┤  │ │                             │
 │  │  Scoring Engine     │  │ │                             │
 │  └─────────────────────┘  │ │                             │
@@ -84,7 +84,7 @@ Latest benchmark run (`tools/benchmark_compare.py`, March 2026) on 148 tricky an
 │                  zantetsu-trainer                        │
 │  ┌──────────────────┐  ┌──────────────────────────────┐  │
 │  │  Dump Syncer     │  │  RLAIF Training Loop         │  │
-│  │  (Kitsu/AniList) │  │  (candle fine-tuning)        │  │
+│  │  (Kitsu/Remote)  │  │  (candle fine-tuning)        │  │
 │  └──────────────────┘  └──────────────────────────────┘  │
 └──────────────────────────────────────────────────────────┘
                 │
@@ -103,7 +103,7 @@ Latest benchmark run (`tools/benchmark_compare.py`, March 2026) on 148 tricky an
 |-----------|------|-------------|
 | `zantetsu` | Crate | **Main entry point** — unified API combining all parsers |
 | `zantetsu-core` | Crate | ML parser + heuristic fallback + scoring |
-| `zantetsu-vecdb` | Crate | Semantic vector search with HNSW |
+| `zantetsu-vecdb` | Crate | Canonical title matching via Kitsu dumps or remote GraphQL endpoints |
 | `zantetsu-trainer` | Crate | Model training and RLAIF workflows |
 | `zantetsu-ffi` | Crate | Multi-language bindings |
 | `kitsu-sync` | Tool | Kitsu database dump downloader/importer |
@@ -113,7 +113,7 @@ Latest benchmark run (`tools/benchmark_compare.py`, March 2026) on 148 tricky an
 
 - **Runtime**: Rust 1.85+
 - **ML Inference**: Candle (DistilBERT) + Character CNN (in development)
-- **Vector Search**: HNSW (all-MiniLM-L6-v2)
+- **Title Matching**: Local SQL dump parsing + remote GraphQL + fuzzy lexical scoring
 - **Storage**: SQLite (rusqlite)
 - **Async**: Tokio
 - **CLI**: Clap
@@ -153,17 +153,33 @@ cargo test --workspace
 
 ```bash
 # Train with RAD-augmented data (GPU)
-python tools/train_char_cnn.py --epochs 20 --batch_size 64
+python tools/train/char_cnn.py --epochs 20 --batch_size 64
 
 # Train with subset for debugging (CPU)
-python tools/train_char_cnn.py --epochs 3 --batch_size 16 --max_samples 10000 --no_crf
+python tools/train/char_cnn.py --epochs 3 --batch_size 16 --max_samples 10000 --no_crf
 
 # Validate parser against AnimeDB
-python tools/validate_with_anidb.py
+python tools/validate/anime_db.py
 
 # Generate more training data
-python tools/generate_rad_data.py
+python tools/data/generate_rad_dataset.py
 ```
+
+### Hybrid BIO Tagging Pipeline
+
+```bash
+# Build a structurally tokenized BIO dataset with richer labels
+python tools/data/generate_hybrid_dataset.py \
+  --input data/training/rad_dataset_50k.jsonl \
+  --output data/training/hybrid_dataset.jsonl
+
+# Train a BiLSTM-CRF with token, char, bracket, and position embeddings
+python tools/train/hybrid_bilstm_crf.py \
+  --data data/training/hybrid_dataset.jsonl \
+  --output-dir models/hybrid_bilstm_crf
+```
+
+This path keeps the current heuristic parser as the production fallback while you iterate on token-level BIO tagging with structural tokenization and heuristic cleanup.
 
 ### Database Setup
 
@@ -175,10 +191,10 @@ export KITSU_DB_PASSWORD=root
 cargo run -p kitsu-sync -- reset
 
 # Or using the shell script
-KITSU_DB_PASSWORD=root ./tools/kitsu-db-sync.sh reset
+KITSU_DB_PASSWORD=root ./tools/kitsu_sync.sh reset
 ```
 
-See [tools/kitsu-sync/README.md](tools/kitsu-sync/README.md) for detailed setup instructions.
+See [tools/kitsu_sync/README.md](tools/kitsu_sync/README.md) for detailed setup instructions.
 
 ## Design Principles
 

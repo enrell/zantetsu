@@ -38,7 +38,7 @@
 //! ## Crates
 //!
 //! - `zantetsu-core` — Parsing engine (heuristic + neural + character CNN)
-//! - `zantetsu-vecdb` — Semantic vector search with HNSW
+//! - `zantetsu-vecdb` — Canonical title matching via Kitsu dumps or remote endpoints
 //! - `zantetsu-trainer` — Model training and RLAIF workflows
 //! - `zantetsu-ffi` — Multi-language bindings (TypeScript, Python, C/C++)
 
@@ -47,6 +47,10 @@ pub use zantetsu_core::parser::{HeuristicParser, NeuralParser};
 pub use zantetsu_core::scoring::{QualityProfile, QualityScores};
 pub use zantetsu_core::types::{
     AudioCodec, EpisodeSpec, MediaSource, ParseMode, ParseResult, Resolution, VideoCodec,
+};
+pub use zantetsu_vecdb::{
+    AnimeIds, AnimeTitleMatch, MatchProvider, MatchSource, MatchResult, MatcherError,
+    TitleMatcher, default_kitsu_dump_dir,
 };
 
 /// Main entry point for the Zantetsu parsing engine.

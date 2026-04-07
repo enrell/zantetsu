@@ -22,7 +22,7 @@ impl CrfModel {
 
         // The linear layer for emission scores maps from hidden_size to num_labels
         // In Hugging Face sequence classification, this is usually named `classifier`
-        let emission = candle_nn::linear(hidden_size, num_labels, vb.clone())?;
+        let emission = candle_nn::linear(hidden_size, num_labels, vb.pp("classifier"))?;
 
         // Depending on whether CRF transitions were learned in python, we might load them here
         // If not, we can initialize a dummy transition matrix for the Viterbi decoder to use

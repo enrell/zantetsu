@@ -6,8 +6,8 @@ members = [
     "crates/zantetsu-vecdb",
     "crates/zantetsu-trainer",
     "crates/zantetsu-ffi",
-    "tools/kitsu-sync",
-    "tools/benchmark-compare",
+    "tools/kitsu_sync",
+    "tools/benchmark_compare",
 ]
 
 [workspace.package]

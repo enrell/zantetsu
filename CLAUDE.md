@@ -4,24 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Zantetsu is an ultra-fast metadata extraction library for anime filenames, built in Rust with multi-language FFI bindings. It combines ML-based parsing (Neural CRF with Candle) with a heuristic fallback, and includes a vector database for semantic search. The project uses a workspace layout with 4 main crates plus tools and bindings.
+Zantetsu is an ultra-fast metadata extraction library for anime filenames, built in Rust with multi-language FFI bindings. It combines ML-based parsing (Neural CRF with Candle) with a heuristic fallback, and includes canonical title matching backed by local Kitsu dumps or a remote GraphQL endpoint. The project uses a workspace layout with 4 main crates plus tools and bindings.
 
 **Key crates:**
 - `zantetsu-core`: Main parsing engine (ML + heuristic)
-- `zantetsu-vecdb`: HNSW vector index for semantic search
+- `zantetsu-vecdb`: Canonical title matching via Kitsu dumps or remote GraphQL
 - `zantetsu-trainer`: RLAIF training pipeline
 - `zantetsu-ffi`: FFI bindings for Node.js (napi-rs) and Python (PyO3)
 
 **Tools:**
 - `kitsu-sync`: Downloads/imports Kitsu anime database dumps
 - `benchmark-compare`: Performance comparison tool
-- Various Python training/data generation scripts in `tools/`
+- `python/zantetsu_tools`: Shared Python tooling package
+- `tools/*`: Thin CLI wrappers grouped by concern
 
 ## Development Prerequisites
 
 - Rust 1.85+ (edition 2024)
 - Python 3.10+ with `uv` for Python dependencies
-- PostgreSQL 12+ (for Kitsu database integration) — see `tools/kitsu-sync/README.md`
+- PostgreSQL 12+ (for Kitsu database integration) — see `tools/kitsu_sync/README.md`
 - Node.js (for bindings development)
 
 ## Build, Test, and Lint Commands
@@ -99,10 +100,10 @@ npm run clean
 uv sync
 
 # Run Python training/data scripts
-python tools/generate_training_data.py
-python tools/visualize_predictions.py
-python tools/validate_gemini_output.py
-python check_model.py
+python tools/train/char_cnn.py --epochs 3 --batch_size 16 --max_samples 10000 --no_crf
+python tools/data/generate_rad_dataset.py
+python tools/validate/anime_db.py
+python tools/model/check_ner_model.py
 ```
 
 ### Database Setup (Kitsu)
@@ -120,10 +121,10 @@ cargo run -p kitsu-sync -- -P root reset
 cargo run -p kitsu-sync -- -H localhost -U postgres -P mypassword reset
 
 # Or using shell script
-KITSU_DB_PASSWORD=root ./tools/kitsu-db-sync.sh reset
+KITSU_DB_PASSWORD=root ./tools/kitsu_sync.sh reset
 ```
 
-See `tools/kitsu-sync/README.md` for complete setup details.
+See `tools/kitsu_sync/README.md` for complete setup details.
 
 ## Architecture & Code Structure
 
@@ -132,7 +133,7 @@ zantetsu/
 ├── Cargo.toml              # Workspace root (members: 4 crates + 2 tools)
 ├── README.md               # Project overview, benchmarks, vision
 ├── AGENTS.md               # Detailed coding standards & conventions
-├── pyproject.toml          # Python dependencies (torch, transformers, etc.)
+├── pyproject.toml          # Python devtool dependencies
 ├── crates/
 │   ├── zantetsu-core/     # Parsing engine
 │   │   ├── src/
@@ -142,8 +143,8 @@ zantetsu/
 │   │   │   ├── types/     # Data structures (ParseResult, EpisodeSpec, etc.)
 │   │   │   └── error.rs   # Error types (ZantetsuError)
 │   │   └── Cargo.toml
-│   ├── zantetsu-vecdb/    # Vector database with SQLite + HNSW
-│   │   └── src/lib.rs
+│   ├── zantetsu-vecdb/    # Canonical title matching
+│   │   └── src/
 │   ├── zantetsu-trainer/  # Model training & RLAIF loop
 │   │   └── src/
 │   │       ├── model.rs   # Model definition
@@ -161,12 +162,22 @@ zantetsu/
 │   │   │   └── index.test.ts
 │   │   └── package.json
 │   └── python/            # Python bindings (planned, PyO3)
+├── python/zantetsu_tools/ # Internal Python tooling package
+│   ├── common/            # Shared helpers (paths, JSONL, AnimeDB, torch, safetensors)
+│   ├── benchmark/         # Benchmark implementation
+│   ├── data/              # Dataset generation
+│   ├── model/             # Model inspection/conversion
+│   ├── training/          # Training pipelines
+│   └── validate/          # Validation flows
 ├── tools/
-│   ├── kitsu-sync/        # Kitsu database sync (Rust CLI)
-│   ├── benchmark-compare/ # Performance comparison tool
-│   ├── annotate/          # Data annotation utilities
-│   ├── train_ner/         # NER training scripts
-│   └── *.py               # Various Python helper scripts
+│   ├── benchmark/         # Benchmark CLI wrappers
+│   ├── data/              # Dataset generation CLI wrappers
+│   ├── model/             # Model inspection/conversion CLI wrappers
+│   ├── train/             # Training CLI wrappers
+│   ├── validate/          # Validation CLI wrappers
+│   ├── kitsu_sync/        # Kitsu database sync (Rust CLI)
+│   ├── benchmark_compare/ # Rust benchmark binary
+│   └── kitsu_sync.sh      # Shell helper for Kitsu dump import
 └── data/                  # Generated data and model checkpoints
 ```
 
@@ -197,8 +208,8 @@ zantetsu/
 - TypeScript 5.6+, Jest for testing
 
 **Python:**
-- torch, transformers, safetensors (training)
-- datasets (data loading)
+- torch, numpy, safetensors (training/model utilities)
+- parsett, rank-torrent-name (benchmark comparisons)
 
 ## Important Conventions
 
@@ -247,7 +258,7 @@ cargo watch -x check -x test
 
 ```bash
 # Check status
-./tools/kitsu-db-sync.sh status
+./tools/kitsu_sync.sh status
 
 # Download only
 cargo run -p kitsu-sync -- download
@@ -282,9 +293,13 @@ cargo run -p kitsu-sync -- reset
 
 ```bash
 uv sync
-python tools/generate_training_data.py  # Generates synthetic examples
-python tools/generate_50k_training.py  # Large dataset
-python tools/fetch_nyaa_titles.py      # Scrape real titles
+python tools/data/generate_rad_dataset.py
+python tools/data/generate_hybrid_dataset.py \
+  --input data/training/rad_dataset_50k.jsonl \
+  --output data/training/hybrid_dataset.jsonl
+python tools/train/hybrid_bilstm_crf.py \
+  --data data/training/hybrid_dataset.jsonl \
+  --output-dir models/hybrid_bilstm_crf
 ```
 
 See individual script headers for usage.
@@ -307,5 +322,5 @@ Key environment variables:
 
 - `README.md` — Project vision, features, quick start, benchmarks
 - `AGENTS.md` **Read this** for comprehensive coding standards, style guidelines, and detailed architecture explanation
-- `tools/kitsu-sync/README.md` — Database setup and troubleshooting
+- `tools/kitsu_sync/README.md` — Database setup and troubleshooting
 - Crate-level `README.md` files (if present) for specific component documentation

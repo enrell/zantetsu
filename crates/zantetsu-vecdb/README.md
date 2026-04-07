@@ -1,26 +1,34 @@
 # zantetsu-vecdb
 
-Semantic title mapping via embedded vector search.
+Canonical title matching for parsed anime names.
 
 ## Features
 
-- **HNSW Index**: Approximate nearest neighbor search for fast semantic matching
-- **Hybrid Search**: Combines semantic similarity with lexical matching
-- **SQLite Storage**: Persistent vector index with embedded database
-- **Title Normalization**: Maps extracted titles to canonical anime names
+- **Local Kitsu Dumps**: Read `latest.sql` or `latest.sql.gz` directly from the `kitsu-sync` dump directory
+- **Remote Endpoint**: Query a remote GraphQL endpoint when the client prefers live API data
+- **Fuzzy Matching**: Score aliases locally so the crate API stays consistent across both backends
+- **Canonical IDs**: Return Kitsu, AniList-compatible, and MAL ids when they are available
 
 ## Usage
 
 ```rust
-use zantetsu_vecdb::VecDb;
+use zantetsu_vecdb::{MatchSource, TitleMatcher};
 
-let db = VecDb::open("anime_vectors.db").unwrap();
+let matcher = TitleMatcher::new(MatchSource::kitsu_dump(
+    "/home/user/.local/share/zantetsu/kitsu-dumps",
+))
+.unwrap();
 
-// Search by semantic similarity
-let results = db.search("spy x family", 5).unwrap();
-for (title, score) in &results {
-    println!("{}: {:.2}", title, score);
-}
+let best = matcher.match_title("spy x family").unwrap().unwrap();
+assert_eq!(best.canonical_title, "Spy x Family");
+```
+
+```rust
+use zantetsu_vecdb::{MatchSource, TitleMatcher};
+
+let matcher = TitleMatcher::new(MatchSource::remote_endpoint("https://graphql.anilist.co")).unwrap();
+let best = matcher.match_title("Sousou no Frieren").unwrap().unwrap();
+println!("{} ({:.2})", best.canonical_title, best.score);
 ```
 
 ## License

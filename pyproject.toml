@@ -1,15 +1,11 @@
 [project]
-name = "zantetsu"
+name = "zantetsu-devtools"
 version = "0.1.0"
-description = "Ultra-fast, intelligent library for anime metadata extraction and normalization"
+description = "Development tooling for Zantetsu training, benchmarking, validation, and model maintenance"
 dependencies = [
     "torch",
-    "datasets",
-    "transformers",
+    "numpy",
     "safetensors",
-    "tokenizers",
-    "accelerate",
-    "openai",
     "parsett>=1.8.5",
     "rank-torrent-name>=1.11.0",
 ]
@@ -17,3 +13,4 @@ requires-python = ">=3.11"
 
 [tool.uv]
 managed = true
+package = false

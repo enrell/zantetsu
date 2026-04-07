@@ -71,6 +71,112 @@ fn is_usable_text(value: &Option<String>) -> bool {
         .unwrap_or(false)
 }
 
+fn normalize_whitespace(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn normalize_candidate_text(value: &str) -> Option<String> {
+    let cleaned = value
+        .replace('.', " ")
+        .replace('_', " ")
+        .replace(['[', ']', '(', ')', '{', '}'], " ")
+        .trim_matches(|c: char| {
+            matches!(c, '[' | ']' | '(' | ')' | '{' | '}' | ' ' | '.' | '_' | '-')
+        })
+        .to_string();
+
+    let cleaned = normalize_whitespace(&cleaned);
+    (!cleaned.is_empty()).then_some(cleaned)
+}
+
+fn normalized_metadata_token(token: &str) -> String {
+    token
+        .trim_matches(|c: char| !c.is_ascii_alphanumeric())
+        .to_ascii_lowercase()
+}
+
+fn looks_like_metadata_token(token: &str) -> bool {
+    let normalized = normalized_metadata_token(token);
+    match normalized.as_str() {
+        "480p" | "480i" | "720p" | "720i" | "1080p" | "1080i" | "2160p" | "2160i" | "4k"
+        | "bluray" | "bd" | "webdl" | "webrip" | "dvd" | "hdtv" | "remux" | "hevc" | "x264"
+        | "x265" | "h264" | "h265" | "av1" | "vp9" | "aac" | "flac" | "opus" | "ac3" | "dts"
+        | "mp3" | "mkv" | "mp4" | "avi" | "batch" | "complete" => true,
+        _ if normalized.starts_with('v') && normalized[1..].chars().all(|c| c.is_ascii_digit()) => {
+            true
+        }
+        _ if normalized.len() == 8 && normalized.chars().all(|c| c.is_ascii_hexdigit()) => true,
+        _ => false,
+    }
+}
+
+fn looks_like_metadata_noise(value: &str) -> bool {
+    let parts: Vec<&str> = value.split_whitespace().collect();
+    !parts.is_empty() && parts.iter().all(|part| looks_like_metadata_token(part))
+}
+
+fn clean_title_candidate(value: &str) -> Option<String> {
+    let cleaned = normalize_candidate_text(value)?;
+    let mut parts: Vec<&str> = cleaned.split_whitespace().collect();
+
+    while matches!(parts.last(), Some(last) if looks_like_metadata_token(last)) {
+        parts.pop();
+    }
+
+    let cleaned = normalize_whitespace(&parts.join(" "));
+    if cleaned.len() < 2 || looks_like_metadata_noise(&cleaned) {
+        return None;
+    }
+
+    Some(cleaned)
+}
+
+fn clean_group_candidate(value: &str) -> Option<String> {
+    let cleaned = normalize_candidate_text(value)?;
+    if cleaned.len() < 2 || looks_like_metadata_noise(&cleaned) {
+        return None;
+    }
+
+    Some(cleaned)
+}
+
+fn strip_group_prefix(title: &str, group: &str) -> String {
+    for prefix in [
+        format!("{group} - "),
+        format!("{group}: "),
+        format!("{group} "),
+    ] {
+        if title
+            .to_ascii_lowercase()
+            .starts_with(&prefix.to_ascii_lowercase())
+            && title.len() > prefix.len()
+        {
+            return title[prefix.len()..].trim().to_string();
+        }
+    }
+
+    title.to_string()
+}
+
+fn sanitize_result(mut result: ParseResult) -> ParseResult {
+    result.group = result.group.as_deref().and_then(clean_group_candidate);
+    result.title = result.title.as_deref().and_then(clean_title_candidate);
+
+    if let (Some(group), Some(title)) = (result.group.as_ref(), result.title.as_ref()) {
+        let stripped = strip_group_prefix(title, group);
+        if stripped != *title {
+            result.title = clean_title_candidate(&stripped);
+        }
+    }
+
+    if matches!((&result.group, &result.title), (Some(group), Some(title)) if group.eq_ignore_ascii_case(title))
+    {
+        result.group = None;
+    }
+
+    result
+}
+
 fn is_heuristic_complete(result: &ParseResult) -> bool {
     result.title.is_some() && result.group.is_some() && result.episode.is_some()
 }
@@ -80,11 +186,20 @@ fn fuse_results(
     neural: &ParseResult,
     neural_fill_threshold: f32,
 ) -> ParseResult {
+    heuristic = sanitize_result(heuristic);
+    let neural = sanitize_result(neural.clone());
+
     if neural.confidence < neural_fill_threshold {
         return heuristic;
     }
 
-    if !is_usable_text(&heuristic.title) && is_usable_text(&neural.title) {
+    if (!is_usable_text(&heuristic.title)
+        || heuristic
+            .title
+            .as_ref()
+            .is_some_and(|title| looks_like_metadata_noise(title)))
+        && is_usable_text(&neural.title)
+    {
         heuristic.title = neural.title.clone();
     }
     if !is_usable_text(&heuristic.group) && is_usable_text(&neural.group) {
@@ -97,12 +212,36 @@ fn fuse_results(
     if heuristic.season.is_none() {
         heuristic.season = neural.season;
     }
+    if heuristic.resolution.is_none() {
+        heuristic.resolution = neural.resolution;
+    }
+    if heuristic.video_codec.is_none() {
+        heuristic.video_codec = neural.video_codec;
+    }
+    if heuristic.audio_codec.is_none() {
+        heuristic.audio_codec = neural.audio_codec;
+    }
+    if heuristic.source.is_none() {
+        heuristic.source = neural.source;
+    }
+    if heuristic.year.is_none() {
+        heuristic.year = neural.year;
+    }
+    if heuristic.crc32.is_none() {
+        heuristic.crc32 = neural.crc32.clone();
+    }
+    if heuristic.extension.is_none() {
+        heuristic.extension = neural.extension.clone();
+    }
+    if heuristic.version.is_none() {
+        heuristic.version = neural.version;
+    }
 
     heuristic.confidence = heuristic
         .confidence
         .max((heuristic.confidence + neural.confidence * 0.35).clamp(0.0, 1.0));
 
-    heuristic
+    sanitize_result(heuristic)
 }
 
 impl Parser {
@@ -165,10 +304,10 @@ impl Parser {
     /// Parse using the neural CRF model (ParseMode::Full).
     fn parse_full(&self, input: &str) -> Result<ParseResult> {
         if let Some(ref neural) = self.neural {
-            neural.parse(input)
+            neural.parse(input).map(sanitize_result)
         } else {
             // Neural parser not available, fall back to heuristic
-            let mut result = self.heuristic.parse(input)?;
+            let mut result = sanitize_result(self.heuristic.parse(input)?);
             result.parse_mode = ParseMode::Light; // Mark as fallback
             Ok(result)
         }
@@ -176,7 +315,7 @@ impl Parser {
 
     /// Parse using the heuristic regex parser (ParseMode::Light).
     fn parse_light(&self, input: &str) -> Result<ParseResult> {
-        self.heuristic.parse(input)
+        self.heuristic.parse(input).map(sanitize_result)
     }
 
     /// Parse with automatic mode selection.
@@ -186,7 +325,7 @@ impl Parser {
     /// 2. If neural parser confidence is below threshold, try heuristic
     /// 3. Return the result with higher confidence
     fn parse_auto(&self, input: &str) -> Result<ParseResult> {
-        let mut heuristic_result = self.heuristic.parse(input)?;
+        let mut heuristic_result = sanitize_result(self.heuristic.parse(input)?);
         heuristic_result.parse_mode = ParseMode::Auto;
 
         let Some(neural) = self.neural.as_ref() else {
@@ -199,7 +338,7 @@ impl Parser {
             return Ok(heuristic_result);
         }
 
-        match neural.parse(input) {
+        match neural.parse(input).map(sanitize_result) {
             Ok(neural_result) => {
                 if neural_result.confidence > 0.90
                     && neural_result.confidence > heuristic_result.confidence + 0.20
@@ -325,6 +464,36 @@ mod tests {
         let merged = fuse_results(heuristic.clone(), &neural, 0.6);
         assert_eq!(merged.group, heuristic.group);
         assert_eq!(merged.title, heuristic.title);
+    }
+
+    #[test]
+    fn test_sanitize_result_strips_group_prefix_and_metadata_noise() {
+        let mut result = ParseResult::new("x", ParseMode::Full);
+        result.group = Some("SubsPlease".into());
+        result.title = Some("[SubsPlease] Frieren 1080p HEVC".into());
+
+        let cleaned = sanitize_result(result);
+
+        assert_eq!(cleaned.group.as_deref(), Some("SubsPlease"));
+        assert_eq!(cleaned.title.as_deref(), Some("Frieren"));
+    }
+
+    #[test]
+    fn test_fusion_fills_additional_metadata_fields() {
+        let mut heuristic = ParseResult::new("x", ParseMode::Light);
+        heuristic.title = Some("Frieren".into());
+        heuristic.confidence = 0.62;
+
+        let mut neural = ParseResult::new("x", ParseMode::Full);
+        neural.title = Some("Frieren".into());
+        neural.source = Some(crate::types::MediaSource::WebDL);
+        neural.resolution = Some(crate::types::Resolution::FHD1080);
+        neural.confidence = 0.82;
+
+        let merged = fuse_results(heuristic, &neural, 0.6);
+
+        assert_eq!(merged.source, Some(crate::types::MediaSource::WebDL));
+        assert_eq!(merged.resolution, Some(crate::types::Resolution::FHD1080));
     }
 
     #[test]

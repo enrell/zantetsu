@@ -8,23 +8,13 @@ license.workspace = true
 readme = "README.md"
 
 [dependencies]
-zantetsu-core = { workspace = true }
-
-# ML inference (Phase 3)
-# candle-core = { workspace = true }
-# candle-nn = { workspace = true }
-
-# Storage
-rusqlite = { workspace = true }
-
-# Error handling
-thiserror = { workspace = true }
-
-# Serialization
+dirs = "5.0.1"
+flate2 = "1.0"
+reqwest = { workspace = true, features = ["blocking"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-
-# Logging
+strsim = "0.11.1"
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

@@ -41,8 +41,9 @@ dist/
 lcov.info
 coverage/
 
-# Crush
+# LLM providers
 .crush/
+.codex
 
 # Bindings build artifacts
 bindings/python/target/

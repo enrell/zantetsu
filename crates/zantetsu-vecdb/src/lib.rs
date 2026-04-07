@@ -1,13 +1,16 @@
 //! # Zantetsu VecDB
 //!
-//! Semantic title mapping via embedded vector search.
-//! Maps extracted title strings to canonical AniList/Kitsu IDs
-//! using HNSW approximate nearest neighbor search with hybrid
-//! semantic + lexical scoring.
+//! Canonical title matching for parsed anime names.
+//!
+//! The current implementation supports two backends:
+//! - A local Kitsu SQL dump (`latest.sql` or `latest.sql.gz`)
+//! - A remote GraphQL endpoint compatible with the expected anime search schema
 
-// Phase 3 modules:
-// pub mod cache;
-// pub mod embeddings;
-// pub mod error;
-// pub mod index;
-// pub mod search;
+pub mod error;
+mod matcher;
+
+pub use error::{MatchResult, MatcherError};
+pub use matcher::{
+    AnimeIds, AnimeTitleMatch, MatchProvider, MatchSource, TitleMatcher,
+    default_kitsu_dump_dir,
+};
