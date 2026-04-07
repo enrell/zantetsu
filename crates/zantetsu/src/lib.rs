@@ -7,7 +7,7 @@
 //! - **Heuristic Parsing**: Regex-based parsing for fast, reliable extraction
 //! - **Neural CRF**: DistilBERT + CRF model for accurate sequence labeling
 //! - **Character CNN**: CNN + BiLSTM + CRF for robust character-level parsing (in development)
-//! - **Semantic Search**: HNSW vector index for title matching
+//! - **Canonical Matching**: Local Kitsu dump matching or remote endpoint lookup
 //! - **Quality Scoring**: Configurable quality profiles for release validation
 //!
 //! ## Quick Start

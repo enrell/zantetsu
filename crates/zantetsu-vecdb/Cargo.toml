@@ -1,6 +1,6 @@
 [package]
 name = "zantetsu-vecdb"
-description = "Semantic title mapping via embedded vector search"
+description = "Canonical anime title matching via Kitsu dumps or remote endpoints"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

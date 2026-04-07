@@ -2,6 +2,14 @@
 
 Canonical title matching for parsed anime names.
 
+## Crates
+
+- [`zantetsu`](https://crates.io/crates/zantetsu) - unified API surface
+- [`zantetsu-core`](https://crates.io/crates/zantetsu-core) - parsing engine
+- [`zantetsu-vecdb`](https://crates.io/crates/zantetsu-vecdb) - canonical title matching
+- [`zantetsu-trainer`](https://crates.io/crates/zantetsu-trainer) - training workflows
+- [`zantetsu-ffi`](https://crates.io/crates/zantetsu-ffi) - Node/Python/C bindings
+
 ## Features
 
 - **Local Kitsu Dumps**: Read `latest.sql` or `latest.sql.gz` directly from the `kitsu-sync` dump directory

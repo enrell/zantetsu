@@ -2,6 +2,14 @@
 
 ML-based anime metadata extraction and normalization engine.
 
+## Crates
+
+- [`zantetsu`](https://crates.io/crates/zantetsu) - unified API surface
+- [`zantetsu-core`](https://crates.io/crates/zantetsu-core) - parsing engine
+- [`zantetsu-vecdb`](https://crates.io/crates/zantetsu-vecdb) - canonical title matching
+- [`zantetsu-trainer`](https://crates.io/crates/zantetsu-trainer) - training workflows
+- [`zantetsu-ffi`](https://crates.io/crates/zantetsu-ffi) - Node/Python/C bindings
+
 ## Features
 
 - **Heuristic Parser**: Fast regex-based extraction for production use (~92% accuracy)
@@ -14,11 +22,10 @@ ML-based anime metadata extraction and normalization engine.
 ```rust
 use zantetsu_core::{HeuristicParser, ParseResult};
 
-let parser = HeuristicParser::default();
+let parser = HeuristicParser::new().unwrap();
 let result: ParseResult = parser.parse("[SubsPlease] Spy x Family - 01 (1080p).mkv").unwrap();
 
 assert_eq!(result.title, Some("Spy x Family".to_string()));
-assert_eq!(result.resolution, Some("FHD1080".to_string()));
 assert_eq!(result.group, Some("SubsPlease".to_string()));
 ```
 

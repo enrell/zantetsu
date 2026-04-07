@@ -126,7 +126,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "benchmark-compare"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "clap",
  "serde",
@@ -3451,7 +3451,7 @@ dependencies = [
 
 [[package]]
 name = "zantetsu"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "zantetsu-core",
  "zantetsu-trainer",
@@ -3460,7 +3460,7 @@ dependencies = [
 
 [[package]]
 name = "zantetsu-core"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -3477,7 +3477,7 @@ dependencies = [
 
 [[package]]
 name = "zantetsu-ffi"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "napi",
  "napi-derive",
@@ -3492,7 +3492,7 @@ dependencies = [
 
 [[package]]
 name = "zantetsu-trainer"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "candle-core",
@@ -3511,7 +3511,7 @@ dependencies = [
 
 [[package]]
 name = "zantetsu-vecdb"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "dirs",
  "flate2",
