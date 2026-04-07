@@ -12,6 +12,36 @@
 //! - [`zantetsu-vecdb`](https://docs.rs/zantetsu-vecdb) - canonical title matching
 //! - [`zantetsu-trainer`](https://docs.rs/zantetsu-trainer) - training workflows
 //! - [`zantetsu-ffi`](https://docs.rs/zantetsu-ffi) - Node/Python/C bindings
+//!
+//! ## Examples
+//!
+//! Use a local Kitsu dump:
+//!
+//! ```rust,no_run
+//! use zantetsu_vecdb::{MatchSource, TitleMatcher};
+//!
+//! let matcher = TitleMatcher::new(
+//!     MatchSource::kitsu_dump("/home/user/.local/share/zantetsu/kitsu-dumps"),
+//! )
+//! .unwrap();
+//!
+//! let best = matcher.match_title("Sousou no Frieren").unwrap();
+//! assert!(best.is_some());
+//! ```
+//!
+//! Use a remote GraphQL endpoint:
+//!
+//! ```rust,no_run
+//! use zantetsu_vecdb::{MatchSource, TitleMatcher};
+//!
+//! let matcher = TitleMatcher::new(
+//!     MatchSource::remote_endpoint("https://graphql.anilist.co"),
+//! )
+//! .unwrap();
+//!
+//! let best = matcher.match_title("Spy x Family").unwrap();
+//! assert!(best.is_some());
+//! ```
 
 pub mod error;
 mod matcher;

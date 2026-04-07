@@ -51,6 +51,17 @@ pub struct AnimeTitleMatch {
 }
 
 /// Backend choice for canonical title matching.
+///
+/// # Examples
+///
+/// ```rust
+/// use zantetsu_vecdb::MatchSource;
+///
+/// let local = MatchSource::kitsu_dump("/tmp/kitsu-dumps");
+/// let remote = MatchSource::remote_endpoint("https://graphql.anilist.co");
+///
+/// let _ = (local, remote);
+/// ```
 #[derive(Debug, Clone)]
 pub enum MatchSource {
     /// Use a local Kitsu SQL dump located at `dump_path`.
@@ -93,6 +104,8 @@ pub fn default_kitsu_dump_dir() -> PathBuf {
 }
 
 /// Canonical title matcher backed by either a local Kitsu dump or a remote GraphQL endpoint.
+///
+/// Construct a matcher once and reuse it for many title lookups.
 pub struct TitleMatcher {
     backend: MatcherBackend,
 }
@@ -104,6 +117,19 @@ enum MatcherBackend {
 
 impl TitleMatcher {
     /// Create a matcher from the selected source.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use zantetsu_vecdb::{MatchSource, TitleMatcher};
+    ///
+    /// let matcher = TitleMatcher::new(
+    ///     MatchSource::remote_endpoint("https://graphql.anilist.co"),
+    /// )
+    /// .unwrap();
+    ///
+    /// let _ = matcher;
+    /// ```
     pub fn new(source: MatchSource) -> MatchResult<Self> {
         let backend = match source {
             MatchSource::KitsuDump { dump_path } => {
@@ -128,11 +154,27 @@ impl TitleMatcher {
     }
 
     /// Return the best available match for the provided title.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use zantetsu_vecdb::{MatchSource, TitleMatcher};
+    ///
+    /// let matcher = TitleMatcher::new(
+    ///     MatchSource::remote_endpoint("https://graphql.anilist.co"),
+    /// )
+    /// .unwrap();
+    ///
+    /// let best = matcher.match_title("Spy x Family").unwrap();
+    /// assert!(best.is_some());
+    /// ```
     pub fn match_title(&self, title: &str) -> MatchResult<Option<AnimeTitleMatch>> {
         Ok(self.search_titles(title, 1)?.into_iter().next())
     }
 
     /// Search for the best matches for the provided title.
+    ///
+    /// Results are ordered from highest score to lowest score.
     pub fn search_titles(&self, title: &str, limit: usize) -> MatchResult<Vec<AnimeTitleMatch>> {
         let query = normalize_title(title);
         if query.is_empty() {
